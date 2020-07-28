@@ -73,6 +73,6 @@ BOT_TOKEN="123456789:ZZHQAaw1i1sTus3pFGHKX03fzLVpds7Oe8m" MONGO_URL="mongodb://b
 Environment variable | Type | Description
 ---|---|---
 BOT_TOKEN | string | This token is authenticate bot in telegram. Token can be received by chatting with [BotFather](https://core.telegram.org/bots#6-botfather). **Required**
-MONGO_URL | string | URL for connect to MongoDB. Mongo DB needs to store tasks. **Required**
+MONGO_URL | string | URL for connect to MongoDB. Mongo DB needs to store chat and some users data. **Required**
 DEBUG | bool | Enable debug prints. Default **false**
 TG_DEBUG | bool | Enable debug prints for telegram communications. Default **false**
