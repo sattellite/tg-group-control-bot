@@ -1,0 +1,35 @@
+version: "2"
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DEBUG: "false"
+      BOT_TOKEN: ${BOT_TOKEN}
+      MONGO_URL: "mongodb://${BOT_USER}:${BOT_PASS}@mongo:27017/chat_control"
+      TZ: Europe/Moscow
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    restart: "always"
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "127.0.0.1:27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${ROOT_PASS}
+      TZ: Europe/Moscow
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - group-control-bot-mongo:/data/db
+    restart: "always"
+
+volumes:
+  group-control-bot-mongo:
