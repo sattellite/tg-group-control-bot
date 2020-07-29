@@ -40,15 +40,16 @@ func (u *User) String() string {
 
 // Chat describes chat where bot placed
 type Chat struct {
-	ID    int64      `json:"ID" bson:"ID"`
-	Users []ChatUser `json:"Users" bson:"Users"`
-	Title string     `json:"Title" bson:"Title"`
-	Type  string     `json:"Type" bson:"Type"`
+	ID     int64      `json:"ID" bson:"ID"`
+	Users  []ChatUser `json:"Users" bson:"Users"`
+	Title  string     `json:"Title" bson:"Title"`
+	Type   string     `json:"Type" bson:"Type"`
+	Admins []int      `json:"Admins" bson:"Admins"`
 }
 
 // ChatUser describes user in chat
 type ChatUser struct {
-	ID         int64  `json:"ID" bson:"ID"`
+	ID         int    `json:"ID" bson:"ID"`
 	Confirmed  bool   `json:"Confirmed" bson:"Confirmed"`
 	ConfirmMsg Ref    `json:"ConfirmMsg" bson:"ConfirmMsg"`
 	MsgCount   uint64 `json:"MsgCount" bson:"MsgCount"`

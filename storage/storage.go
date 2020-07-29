@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sattellite/tg-group-control-bot/config"
+	"github.com/sattellite/tg-group-control-bot/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -127,4 +128,92 @@ func (s *Storage) UpdateUser(u config.User) error {
 		return errors.New("Failed update in UpdateUser: " + err.Error())
 	}
 	return nil
+}
+
+// UpdateChat updates chat information
+func (s *Storage) UpdateChat(chat config.Chat) error {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return errors.New("Failed ping in UpdateChat:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("chats")
+
+	// _, err = collection.UpdateOne(ctx, bson.M{"ID": chat.ID}, bson.M{"$set": chat}, options.Update().SetUpsert(true))
+	var c config.Chat
+	var needCreate bool
+	err = collection.FindOne(ctx, bson.M{"ID": chat.ID}).Decode(&c)
+	if err != nil {
+		if err.Error() != mongo.ErrNoDocuments.Error() {
+			return errors.New("Failed find in UpdateChat: " + err.Error())
+		}
+		needCreate = true
+	}
+
+	if needCreate {
+		_, err = collection.InsertOne(ctx, chat)
+		if err != nil {
+			return errors.New("Failed insert in UpdateChat: " + err.Error())
+		}
+		return nil
+	}
+
+	c.Title = chat.Title
+	_, err = collection.UpdateOne(ctx, bson.M{"ID": chat.ID}, bson.M{"$set": c})
+	if err != nil {
+		return errors.New("Failed update in UpdateChat: " + err.Error())
+	}
+	return nil
+}
+
+// UserConfirmed checks chat for user confirmation
+func (s *Storage) UserConfirmed(chatID int64, userID int) (bool, error) {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return true, errors.New("Failed ping in UserConfirmed:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("chats")
+
+	var cu config.ChatUser
+
+	err = collection.FindOne(ctx, bson.M{"ID": chatID, "Users.ID": userID}).Decode(&cu)
+
+	utils.Dump(cu)
+
+	return cu.Confirmed, err
+}
+
+// AddChatUser adding user to passed chat
+func (s *Storage) AddChatUser(chatID int64, cu config.ChatUser) error {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return errors.New("Failed ping in AddChatUser:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("chats")
+	_, err = collection.UpdateOne(ctx, bson.M{"ID": chatID}, bson.M{"$push": bson.M{"Users": cu}})
+
+	return err
+}
+
+// UpdateConfirmReference set reference to confirmation message in chat
+func (s *Storage) UpdateConfirmReference(chatID int64, msgID, userID int) error {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return errors.New("Failed ping in AddChatUser:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("chats")
+
+	_, err = collection.UpdateOne(ctx, bson.M{"ID": chatID, "Users.ID": userID}, bson.M{"$set": bson.M{"Users.$.ConfirmMsg": config.Ref{
+		ChatID: chatID,
+		MsgID:  msgID,
+	}}})
+
+	return err
 }

@@ -91,7 +91,8 @@ func main() {
 			log.WithFields(logrus.Fields{
 				"requestID": ctx.RequestID,
 				"user":      update.Message.From,
-			}).Infof("Command request")
+			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
+			// TODO Добавить обработку пользовательского запроса на получение доступа к чату
 		default:
 			log.WithFields(logrus.Fields{
 				"requestID": ctx.RequestID,
