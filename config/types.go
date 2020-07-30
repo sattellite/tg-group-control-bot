@@ -10,16 +10,17 @@ type Config struct {
 
 // User describes all meta data
 type User struct {
-	ID        int    `json:"ID" bson:"ID"`
-	FirstName string `json:"FirstName" bson:"FirstName"`
-	LastName  string `json:"LastName" bson:"LastName"`
-	UserName  string `json:"UserName" bson:"UserName"`
-	Language  string `json:"Language" bson:"Language"`
-	Bot       bool   `json:"Bot" bson:"Bot"`
-	Banned    bool   `json:"Banned" bson:"Banned"`
-	BanDate   int64  `json:"BanDate" bson:"BanDate"`
-	RegDate   int64  `json:"RegDate" bson:"RegDate"`
-	UsageDate int64  `json:"UsageDate" bson:"UsageDate"`
+	ID        int     `json:"ID" bson:"ID"`
+	FirstName string  `json:"FirstName" bson:"FirstName"`
+	LastName  string  `json:"LastName" bson:"LastName"`
+	UserName  string  `json:"UserName" bson:"UserName"`
+	Language  string  `json:"Language" bson:"Language"`
+	Bot       bool    `json:"Bot" bson:"Bot"`
+	Banned    bool    `json:"Banned" bson:"Banned"`
+	BanDate   int64   `json:"BanDate" bson:"BanDate"`
+	RegDate   int64   `json:"RegDate" bson:"RegDate"`
+	UsageDate int64   `json:"UsageDate" bson:"UsageDate"`
+	Chats     []int64 `json:"Chats" bson:"Chats"`
 }
 
 // String displays a simple text version of a user.

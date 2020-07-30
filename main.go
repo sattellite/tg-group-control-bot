@@ -92,7 +92,7 @@ func main() {
 				"requestID": ctx.RequestID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			// TODO Handle user commands to grant privileges in chat
+			go command(ctx, update.Message)
 		default:
 			log.WithFields(logrus.Fields{
 				"requestID": ctx.RequestID,

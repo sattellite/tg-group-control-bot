@@ -39,6 +39,7 @@ func textHandler(ctx Ctx, message *tg.Message) {
 		"user":      message.From,
 	})
 	log.Debugln("textHandler")
+	// TODO Change users state if chatID == userID and correct answer
 	// TODO Increment counter of user messages in chat
 	// utils.Dump(message)
 }
@@ -152,6 +153,7 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 					continue
 				}
 			}
+			// TODO Add this chat to user's chats
 		}
 		log.Infof("Added user `%s` to chat `%s`", utils.ShortUserName(message.From), utils.ChatName(message.Chat))
 	}

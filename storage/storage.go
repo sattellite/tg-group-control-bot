@@ -85,6 +85,7 @@ func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
 		unixtime := time.Now().Unix()
 		u.RegDate = unixtime
 		u.UsageDate = unixtime
+		u.Chats = make([]int64, 0)
 		_, err := collection.InsertOne(ctx, u)
 		if err != nil {
 			return isNewUser, result, errors.New("Failed insert in CheckUser:" + err.Error())
