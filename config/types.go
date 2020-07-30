@@ -40,11 +40,12 @@ func (u *User) String() string {
 
 // Chat describes chat where bot placed
 type Chat struct {
-	ID     int64      `json:"ID" bson:"ID"`
-	Users  []ChatUser `json:"Users" bson:"Users"`
-	Title  string     `json:"Title" bson:"Title"`
-	Type   string     `json:"Type" bson:"Type"`
-	Admins []int      `json:"Admins" bson:"Admins"`
+	ID       int64      `json:"ID" bson:"ID"`
+	Users    []ChatUser `json:"Users" bson:"Users"`
+	Title    string     `json:"Title" bson:"Title"`
+	UserName string     `json:"UserName" bson:"UserName"`
+	Type     string     `json:"Type" bson:"Type"`
+	Admins   []int      `json:"Admins" bson:"Admins"`
 }
 
 // ChatUser describes user in chat

@@ -92,7 +92,7 @@ func main() {
 				"requestID": ctx.RequestID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			// TODO Добавить обработку пользовательского запроса на получение доступа к чату
+			// TODO Handle user commands to grant privileges in chat
 		default:
 			log.WithFields(logrus.Fields{
 				"requestID": ctx.RequestID,

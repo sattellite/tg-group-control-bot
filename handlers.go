@@ -39,7 +39,7 @@ func textHandler(ctx Ctx, message *tg.Message) {
 		"user":      message.From,
 	})
 	log.Debugln("textHandler")
-	// TODO Увеличить счетчик сообщений для пользователя
+	// TODO Increment counter of user messages in chat
 	// utils.Dump(message)
 }
 
@@ -51,25 +51,27 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 	log.Infof("Got array of added users to group chat. Length: %d", len(*message.NewChatMembers))
 	log.Info("Start handling added users")
 
-	// TODO Добавить проверку, что если пользователь зашёл сам, то только тогда запускать обработку
-
 	for _, u := range *message.NewChatMembers {
 		isNeedMessage := true
 		if u.ID == ctx.App.Bot.Self.ID {
 			// Bot added to chat
 			ctx.App.DB.UpdateChat(config.Chat{
-				ID:     message.Chat.ID,
-				Title:  message.Chat.Title,
-				Type:   message.Chat.Type,
-				Admins: []int{message.From.ID},
+				ID:       message.Chat.ID,
+				Title:    message.Chat.Title,
+				UserName: message.Chat.UserName,
+				Type:     message.Chat.Type,
+				Admins:   []int{message.From.ID},
 				Users: []config.ChatUser{{
 					ID:        message.From.ID,
 					Confirmed: true,
 				}},
 			})
 			isNeedMessage = false
-			// TODO Получить список админов чата
-			// TODO Внести админов чата в список пользователей и в список админов
+		}
+
+		// Stop handling if someone from chat added users
+		if message.From.ID != u.ID {
+			continue
 		}
 
 		isConfirmed, err := ctx.App.DB.UserConfirmed(message.Chat.ID, u.ID)
@@ -89,7 +91,7 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 			}
 			if isNeedMessage {
 				var f bool = false
-				// Ограничить права пользователя
+				// Restrict user permissions
 				resp, err := ctx.App.Bot.RestrictChatMember(tg.RestrictChatMemberConfig{
 					ChatMemberConfig: tg.ChatMemberConfig{
 						ChatID: message.Chat.ID,
@@ -102,7 +104,24 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 				})
 				if err != nil {
 					log.Errorf("Failed restrict new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
-					// TODO Отправить сообщение админам о необходимости повышения прав
+					// Send message to admins that bot needs to be granted admin privileges
+					ch, err := ctx.App.DB.GetChatInfo(message.Chat.ID)
+					if err != nil {
+						log.Errorf("Error getting chat information %s. %v", message.Chat.ID, err)
+						continue
+					}
+					chatTitle := ch.Title
+					if ch.Type == "supergroup" && ch.UserName != "" {
+						chatTitle = "@" + ch.UserName
+					}
+					adminText := fmt.Sprintf("Grant admin privileges to bot @%s in chat %s", ctx.App.Bot.Self.UserName, chatTitle)
+					for _, adm := range ch.Admins {
+						msg := tg.NewMessage(int64(adm), adminText)
+						_, err := ctx.App.Bot.Send(msg)
+						if err != nil {
+							log.Errorf("Error sending message to admin %d in chat %s. %v", adm, chatTitle, err)
+						}
+					}
 					continue
 				}
 				// Формирование сообщения с кнопкой для перехода к тесту
@@ -134,7 +153,7 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 				}
 			}
 		}
-		log.Infof("Added user `%s` to chat `%s`", utils.ShortUserName(message.From), message.Chat.Title)
+		log.Infof("Added user `%s` to chat `%s`", utils.ShortUserName(message.From), utils.ChatName(message.Chat))
 	}
 }
 
@@ -143,9 +162,25 @@ func userLeftHandler(ctx Ctx, message *tg.Message) {
 		"requestID": ctx.RequestID,
 		"user":      message.From,
 	})
-	log.Debugln("userLeftHandler")
-	// TODO Обработка удаления пользователя
-	// TODO Удалить из списка админов, если он там присутствовал
-	// TODO Удалить из списка пользователей, если  он не был подтвержден
-	// utils.Dump(message.LeftChatMember)
+	log.Infof("Start handling left user %s from chat %s", utils.ShortUserName(message.From), utils.ChatName(message.Chat))
+	// Remove from users list if user was not confirmed
+	ref, err := ctx.App.DB.RemoveUnconfirmedChatUser(message.Chat.ID, message.LeftChatMember.ID)
+	if err != nil {
+		log.Errorf("Error remove unconfirmed user from chat %s %v", utils.ChatName(message.Chat), err.Error())
+	}
+	if ref.ChatID != 0 {
+		// Remove message from chat
+		_, err := ctx.App.Bot.DeleteMessage(tg.DeleteMessageConfig{
+			ChatID:    ref.ChatID,
+			MessageID: ref.MsgID,
+		})
+		if err != nil {
+			log.Errorf("Error delete confirmation message from chat %s %v", utils.ChatName(message.Chat), err.Error())
+		}
+	}
+	// Remove from admins list
+	err = ctx.App.DB.RemoveChatAdmin(message.Chat.ID, message.LeftChatMember.ID)
+	if err != nil {
+		log.Errorf("Error delete user %d from admins from chat %s %v", message.LeftChatMember.ID, utils.ChatName(message.Chat), err.Error())
+	}
 }

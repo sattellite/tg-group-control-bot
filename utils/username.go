@@ -33,3 +33,12 @@ func LocalUserShortName(user config.User) string {
 	str := []string{user.FirstName, user.LastName}
 	return strings.Join(str, " ")
 }
+
+// ChatName returns chat name
+func ChatName(ch *tg.Chat) string {
+	chatTitle := ch.Title
+	if ch.Type == "supergroup" && ch.UserName != "" {
+		chatTitle = "@" + ch.UserName
+	}
+	return chatTitle
+}

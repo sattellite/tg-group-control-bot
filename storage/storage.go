@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/sattellite/tg-group-control-bot/config"
-	"github.com/sattellite/tg-group-control-bot/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -175,13 +174,9 @@ func (s *Storage) UserConfirmed(chatID int64, userID int) (bool, error) {
 		return true, errors.New("Failed ping in UserConfirmed:" + err.Error())
 	}
 
-	collection := s.Client.Database(s.Name).Collection("chats")
-
 	var cu config.ChatUser
-
+	collection := s.Client.Database(s.Name).Collection("chats")
 	err = collection.FindOne(ctx, bson.M{"ID": chatID, "Users.ID": userID}).Decode(&cu)
-
-	utils.Dump(cu)
 
 	return cu.Confirmed, err
 }
@@ -216,4 +211,110 @@ func (s *Storage) UpdateConfirmReference(chatID int64, msgID, userID int) error 
 	}}})
 
 	return err
+}
+
+// GetChatInfo returns chat info
+func (s *Storage) GetChatInfo(chatID int64) (config.Chat, error) {
+	var c config.Chat
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return c, errors.New("Failed ping in GetChatInfo:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("chats")
+	err = collection.FindOne(ctx, bson.M{"ID": chatID}).Decode(&c)
+	return c, err
+}
+
+// GetChatAdmins return list of chat admins
+func (s *Storage) GetChatAdmins(chatID int64) []int {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return []int{}
+	}
+
+	var c config.Chat
+	collection := s.Client.Database(s.Name).Collection("chats")
+	err = collection.FindOne(ctx, bson.M{"ID": chatID}).Decode(&c)
+	return c.Admins
+}
+
+// GetChatTitle return title of the chat
+func (s *Storage) GetChatTitle(chatID int64) string {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return ""
+	}
+
+	var c config.Chat
+	collection := s.Client.Database(s.Name).Collection("chats")
+	err = collection.FindOne(ctx, bson.M{"ID": chatID}).Decode(&c)
+	if c.Type == "supergroup" {
+		return "@" + c.UserName
+	}
+	return c.Title
+}
+
+// RemoveUnconfirmedChatUser removes unconfirmed user from chat and returns reference to confirm message
+func (s *Storage) RemoveUnconfirmedChatUser(chatID int64, userID int) (config.Ref, error) {
+	var ref config.Ref
+	var c config.Chat
+	isNeedRemove := false
+
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return ref, errors.New("Failed ping in RemoveUnconfirmedChatUser:" + err.Error())
+	}
+	collection := s.Client.Database(s.Name).Collection("chats")
+
+	// Find unconfirmed user
+	err = collection.FindOne(ctx, bson.M{"ID": chatID}, options.FindOne().SetProjection(bson.M{
+		"_id": 0,
+		"Users": bson.M{
+			"$elemMatch": bson.M{"ID": userID, "Confirmed": false},
+		},
+	})).Decode(&c)
+
+	if err != nil {
+		return ref, err
+	}
+
+	if len(c.Users) > 0 {
+		ref = c.Users[0].ConfirmMsg
+		isNeedRemove = true
+	}
+
+	if isNeedRemove {
+		_, err = collection.UpdateOne(ctx, bson.M{"ID": chatID}, bson.M{
+			"$pull": bson.M{
+				"Users": bson.M{"ID": userID, "Confirmed": false},
+			},
+		})
+		if err != nil {
+			return ref, errors.New("Failed remove user in RemoveUnconfirmedChatUser: " + err.Error())
+		}
+	}
+
+	return ref, err
+}
+
+// RemoveChatAdmin removes user from admins list
+func (s *Storage) RemoveChatAdmin(chatID int64, userID int) error {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return errors.New("Failed ping in RemoveChatAdmin:" + err.Error())
+	}
+	collection := s.Client.Database(s.Name).Collection("chats")
+	_, err = collection.UpdateOne(ctx, bson.M{"ID": chatID}, bson.M{
+		"$pull": bson.M{"Admins": userID},
+	})
+	if err != nil {
+		return errors.New("Failed remove user in RemoveUnconfirmedChatUser: " + err.Error())
+	}
+	return nil
 }
