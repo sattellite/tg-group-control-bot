@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -29,8 +28,7 @@ func askQuestion(ctx Ctx, message *tg.Message) {
 		log.Errorf("Error parse chatID in askQuestion %v", err.Error())
 		return
 	}
-	text := fmt.Sprintf("Для получения доступа к чату %s ответьте на вопрос.\n\nВы бот?", ctx.App.DB.GetChatTitle(chatID))
-	msg := tg.NewMessage(int64(message.Chat.ID), text)
+	msg := questionMessage(ctx, chatID, message.Chat.ID)
 	_, err = ctx.App.Bot.Send(msg)
 	if err != nil {
 		log.Errorf("Error sending message in askQuestion to user %s. %v", utils.ShortUserName(message.From), err)

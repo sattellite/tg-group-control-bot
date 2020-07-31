@@ -42,7 +42,7 @@ func main() {
 	}
 	if cfg.Debug {
 		log.SetLevel(logrus.DebugLevel)
-		log.SetReportCaller(true)
+		// log.SetReportCaller(true)
 	}
 	log.Debug("Started in debug mode.")
 	log.Info("Readed application configuration.")
@@ -102,6 +102,9 @@ func main() {
 		}
 	}
 }
+
+// TODO Add timer function for delete old unconfirmed users
+// TODO Add timer function for increment users messages in chats
 
 func echo(app App, message *tg.Message) {
 	msg := tg.NewMessage(message.Chat.ID, message.Text)

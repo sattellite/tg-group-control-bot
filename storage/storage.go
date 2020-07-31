@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sattellite/tg-group-control-bot/config"
+	"github.com/sattellite/tg-group-control-bot/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -244,6 +245,7 @@ func (s *Storage) GetChatAdmins(chatID int64) []int {
 
 // GetChatTitle return title of the chat
 func (s *Storage) GetChatTitle(chatID int64) string {
+	utils.Dump(chatID)
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
@@ -253,6 +255,8 @@ func (s *Storage) GetChatTitle(chatID int64) string {
 	var c config.Chat
 	collection := s.Client.Database(s.Name).Collection("chats")
 	err = collection.FindOne(ctx, bson.M{"ID": chatID}).Decode(&c)
+
+	utils.Dump(err)
 	if c.Type == "supergroup" {
 		return "@" + c.UserName
 	}
@@ -303,6 +307,51 @@ func (s *Storage) RemoveUnconfirmedChatUser(chatID int64, userID int) (config.Re
 	return ref, err
 }
 
+// ConfirmChatUser set user confirmed and returns reference to confirm message
+func (s *Storage) ConfirmChatUser(chatID int64, userID int) (config.Ref, error) {
+	var ref config.Ref
+	var c config.Chat
+	isNeedConfirm := false
+
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return ref, errors.New("Failed ping in ConfirmChatUser:" + err.Error())
+	}
+	collection := s.Client.Database(s.Name).Collection("chats")
+
+	// Find unconfirmed user
+	err = collection.FindOne(ctx, bson.M{"ID": chatID}, options.FindOne().SetProjection(bson.M{
+		"_id": 0,
+		"Users": bson.M{
+			"$elemMatch": bson.M{"ID": userID, "Confirmed": false},
+		},
+	})).Decode(&c)
+
+	if err != nil {
+		return ref, err
+	}
+
+	if len(c.Users) > 0 {
+		ref = c.Users[0].ConfirmMsg
+		isNeedConfirm = true
+	}
+
+	if isNeedConfirm {
+		_, err = collection.UpdateOne(ctx, bson.M{"ID": chatID, "Users.ID": userID}, bson.M{
+			"$set": bson.M{
+				"Users.$.Confirmed":  true,
+				"Users.$.ConfirmMsg": bson.M{"ChatID": 0, "MsgID": 0},
+			},
+		})
+		if err != nil {
+			return ref, errors.New("Failed update user in ConfirmChatUser: " + err.Error())
+		}
+	}
+
+	return ref, err
+}
+
 // RemoveChatAdmin removes user from admins list
 func (s *Storage) RemoveChatAdmin(chatID int64, userID int) error {
 	ctx, cancelCtx, err := s.checkDB()
@@ -318,4 +367,32 @@ func (s *Storage) RemoveChatAdmin(chatID int64, userID int) error {
 		return errors.New("Failed remove user in RemoveUnconfirmedChatUser: " + err.Error())
 	}
 	return nil
+}
+
+// AddUnconfirmedChat adding chat to user's unconfirmed chats
+func (s *Storage) AddUnconfirmedChat(chatID int64, userID int) error {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return errors.New("Failed ping in AddUnconfirmedChat:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("users")
+	_, err = collection.UpdateOne(ctx, bson.M{"ID": userID}, bson.M{"$push": bson.M{"Chats": chatID}})
+
+	return err
+}
+
+// DeleteUnconfirmedChat from user's unconfirmed chats
+func (s *Storage) DeleteUnconfirmedChat(chatID int64, userID int) error {
+	ctx, cancelCtx, err := s.checkDB()
+	defer cancelCtx()
+	if err != nil {
+		return errors.New("Failed ping in DeleteUnconfirmedChat:" + err.Error())
+	}
+
+	collection := s.Client.Database(s.Name).Collection("users")
+	_, err = collection.UpdateOne(ctx, bson.M{"ID": userID}, bson.M{"$pull": bson.M{"Chats": chatID}})
+
+	return err
 }

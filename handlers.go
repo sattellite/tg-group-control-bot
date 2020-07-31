@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/sattellite/tg-group-control-bot/config"
@@ -38,10 +39,91 @@ func textHandler(ctx Ctx, message *tg.Message) {
 		"requestID": ctx.RequestID,
 		"user":      message.From,
 	})
-	log.Debugln("textHandler")
-	// TODO Change users state if chatID == userID and correct answer
+	// Message to chat with bot
+	log.Debug(message.From.ID, message.Chat.ID)
+	if int64(message.From.ID) == message.Chat.ID {
+		log.Infof("Received message in bot chat from user %s with text `%s`", utils.ShortUserName(message.From), message.Text)
+		checkAnswer(ctx, message)
+		return
+	}
+	log.Infof("Received message in chat from user %s with text `%s`", utils.ShortUserName(message.From), message.Text)
 	// TODO Increment counter of user messages in chat
 	// utils.Dump(message)
+}
+
+func checkAnswer(ctx Ctx, message *tg.Message) {
+	log := ctx.Log.WithFields(logrus.Fields{
+		"requestID": ctx.RequestID,
+		"user":      message.From,
+	})
+
+	_, user, err := ctx.App.DB.CheckUser(config.User{ID: message.From.ID})
+	if err != nil {
+		log.Errorf("Failed get user info in checkAnswer for %s %v", utils.ShortUserName(message.From), err.Error())
+	}
+
+	if len(user.Chats) == 0 {
+		log.Errorf("No unconfirmed chats for %s", utils.ShortUserName(message.From))
+		return
+	}
+
+	chatID := user.Chats[len(user.Chats)-1]
+
+	lowerCasedText := strings.ToLower(message.Text)
+	if lowerCasedText == "нет" || lowerCasedText == "no" {
+		var t bool = true
+		// Grant user permissions
+		resp, err := ctx.App.Bot.RestrictChatMember(tg.RestrictChatMemberConfig{
+			ChatMemberConfig: tg.ChatMemberConfig{
+				ChatID: chatID,
+				UserID: message.From.ID,
+			},
+			CanSendMessages:       &t,
+			CanSendMediaMessages:  &t,
+			CanSendOtherMessages:  &t,
+			CanAddWebPagePreviews: &t,
+		})
+		if err != nil {
+			log.Errorf("Failed restore new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
+			// TODO Send error message to admins
+			return
+		}
+		ref, err := ctx.App.DB.ConfirmChatUser(chatID, message.From.ID)
+		if err != nil {
+			log.Errorf("Error delete user %d from admins from chat %s %v", message.LeftChatMember.ID, utils.ChatName(message.Chat), err.Error())
+			return
+		}
+		// Delete confirmation message from group chat
+		if ref.ChatID != 0 {
+			_, err := ctx.App.Bot.DeleteMessage(tg.DeleteMessageConfig{
+				ChatID:    ref.ChatID,
+				MessageID: ref.MsgID,
+			})
+			if err != nil {
+				log.Errorf("Error delete confirmation message from chat %s %v", utils.ChatName(message.Chat), err.Error())
+			}
+		}
+		// Delete chat from user's unconfirmed chats
+		err = ctx.App.DB.DeleteUnconfirmedChat(chatID, message.From.ID)
+		if err != nil {
+			log.Errorf("Error delete user's(%d) unconfirmed chat %s %v", message.From.ID, utils.ChatName(message.Chat), err.Error())
+			return
+		}
+		// Send success message to user in bot chat
+		msg := successMessage(ctx, chatID, message.Chat.ID)
+		_, err = ctx.App.Bot.Send(msg)
+		if err != nil {
+			log.Errorf("Error sending success message in checkAnswer to user %s. %v", utils.ShortUserName(message.From), err)
+		}
+
+		return
+	}
+
+	msg := invalidMessage(ctx, chatID, message.Chat.ID)
+	_, err = ctx.App.Bot.Send(msg)
+	if err != nil {
+		log.Errorf("Error sending invalid message in checkAnswer to user %s. %v", utils.ShortUserName(message.From), err)
+	}
 }
 
 func userAddedHandler(ctx Ctx, message *tg.Message) {
@@ -153,7 +235,8 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 					continue
 				}
 			}
-			// TODO Add this chat to user's chats
+			// Add this chat to user's chats
+			err = ctx.App.DB.AddUnconfirmedChat(message.Chat.ID, u.ID)
 		}
 		log.Infof("Added user `%s` to chat `%s`", utils.ShortUserName(message.From), utils.ChatName(message.Chat))
 	}
