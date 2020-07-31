@@ -175,11 +175,20 @@ func (s *Storage) UserConfirmed(chatID int64, userID int) (bool, error) {
 		return true, errors.New("Failed ping in UserConfirmed:" + err.Error())
 	}
 
-	var cu config.ChatUser
+	var c config.Chat
 	collection := s.Client.Database(s.Name).Collection("chats")
-	err = collection.FindOne(ctx, bson.M{"ID": chatID, "Users.ID": userID}).Decode(&cu)
+	err = collection.FindOne(ctx, bson.M{"ID": chatID}, options.FindOne().SetProjection(bson.M{
+		"_id": 0,
+		"Users": bson.M{
+			"$elemMatch": bson.M{"ID": userID},
+		},
+	})).Decode(&c)
 
-	return cu.Confirmed, err
+	if len(c.Users) == 0 {
+		return false, err
+	}
+
+	return c.Users[0].Confirmed, err
 }
 
 // AddChatUser adding user to passed chat
