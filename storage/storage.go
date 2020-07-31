@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/sattellite/tg-group-control-bot/config"
-	"github.com/sattellite/tg-group-control-bot/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -245,7 +244,6 @@ func (s *Storage) GetChatAdmins(chatID int64) []int {
 
 // GetChatTitle return title of the chat
 func (s *Storage) GetChatTitle(chatID int64) string {
-	utils.Dump(chatID)
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
@@ -256,7 +254,6 @@ func (s *Storage) GetChatTitle(chatID int64) string {
 	collection := s.Client.Database(s.Name).Collection("chats")
 	err = collection.FindOne(ctx, bson.M{"ID": chatID}).Decode(&c)
 
-	utils.Dump(err)
 	if c.Type == "supergroup" {
 		return "@" + c.UserName
 	}
