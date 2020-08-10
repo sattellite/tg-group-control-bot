@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/sattellite/tg-group-control-bot/config"
+	"github.com/sattellite/tg-group-control-bot/internal/config"
 	"github.com/sattellite/tg-group-control-bot/utils"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/mongo"

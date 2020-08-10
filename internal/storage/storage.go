@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/sattellite/tg-group-control-bot/config"
+	"github.com/sattellite/tg-group-control-bot/internal/config"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

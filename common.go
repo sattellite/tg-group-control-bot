@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/sattellite/tg-group-control-bot/config"
+	"github.com/sattellite/tg-group-control-bot/internal/config"
 	"github.com/sattellite/tg-group-control-bot/utils"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"

@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/sattellite/tg-group-control-bot/config"
-	"github.com/sattellite/tg-group-control-bot/storage"
+	"github.com/sattellite/tg-group-control-bot/internal/config"
+	"github.com/sattellite/tg-group-control-bot/internal/storage"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/sirupsen/logrus"
