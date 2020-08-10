@@ -11,14 +11,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func handler(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func handler(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 
 	// Cancel execution if command from bot or user is banned
-	_, err := checkUser(ctx, message.From)
+	_, err := checkUser(req, message.From)
 	if err != nil {
 		log.Error(err)
 		return
@@ -26,24 +26,24 @@ func handler(ctx Ctx, message *tg.Message) {
 
 	switch {
 	case message.NewChatMembers != nil:
-		userAddedHandler(ctx, message)
+		userAddedHandler(req, message)
 	case message.LeftChatMember != nil:
-		userLeftHandler(ctx, message)
+		userLeftHandler(req, message)
 	default:
-		textHandler(ctx, message)
+		textHandler(req, message)
 	}
 }
 
-func textHandler(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func textHandler(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 	// Message to chat with bot
 	log.Debug(message.From.ID, message.Chat.ID)
 	if int64(message.From.ID) == message.Chat.ID {
 		log.Infof("Received message in bot chat from user %s with text `%s`", utils.ShortUserName(message.From), message.Text)
-		checkAnswer(ctx, message)
+		checkAnswer(req, message)
 		return
 	}
 	log.Infof("Received message in chat from user %s with text `%s`", utils.ShortUserName(message.From), message.Text)
@@ -51,13 +51,13 @@ func textHandler(ctx Ctx, message *tg.Message) {
 	// utils.Dump(message)
 }
 
-func checkAnswer(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func checkAnswer(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 
-	_, user, err := ctx.App.DB.CheckUser(config.User{ID: message.From.ID})
+	_, user, err := req.App.DB.CheckUser(config.User{ID: message.From.ID})
 	if err != nil {
 		log.Errorf("Failed get user info in checkAnswer for %s %v", utils.ShortUserName(message.From), err.Error())
 	}
@@ -73,7 +73,7 @@ func checkAnswer(ctx Ctx, message *tg.Message) {
 	if lowerCasedText == "нет" || lowerCasedText == "no" {
 		var t bool = true
 		// Grant user permissions
-		resp, err := ctx.App.Bot.RestrictChatMember(tg.RestrictChatMemberConfig{
+		resp, err := req.App.Bot.RestrictChatMember(tg.RestrictChatMemberConfig{
 			ChatMemberConfig: tg.ChatMemberConfig{
 				ChatID: chatID,
 				UserID: message.From.ID,
@@ -88,14 +88,14 @@ func checkAnswer(ctx Ctx, message *tg.Message) {
 			// TODO Send error message to admins
 			return
 		}
-		ref, err := ctx.App.DB.ConfirmChatUser(chatID, message.From.ID)
+		ref, err := req.App.DB.ConfirmChatUser(chatID, message.From.ID)
 		if err != nil {
 			log.Errorf("Error delete user %d from admins from chat %s %v", message.LeftChatMember.ID, utils.ChatName(message.Chat), err.Error())
 			return
 		}
 		// Delete confirmation message from group chat
 		if ref.ChatID != 0 {
-			_, err := ctx.App.Bot.DeleteMessage(tg.DeleteMessageConfig{
+			_, err := req.App.Bot.DeleteMessage(tg.DeleteMessageConfig{
 				ChatID:    ref.ChatID,
 				MessageID: ref.MsgID,
 			})
@@ -104,14 +104,14 @@ func checkAnswer(ctx Ctx, message *tg.Message) {
 			}
 		}
 		// Delete chat from user's unconfirmed chats
-		err = ctx.App.DB.DeleteUnconfirmedChat(chatID, message.From.ID)
+		err = req.App.DB.DeleteUnconfirmedChat(chatID, message.From.ID)
 		if err != nil {
 			log.Errorf("Error delete user's(%d) unconfirmed chat %s %v", message.From.ID, utils.ChatName(message.Chat), err.Error())
 			return
 		}
 		// Send success message to user in bot chat
-		msg := successMessage(ctx, chatID, message.Chat.ID)
-		_, err = ctx.App.Bot.Send(msg)
+		msg := successMessage(req, chatID, message.Chat.ID)
+		_, err = req.App.Bot.Send(msg)
 		if err != nil {
 			log.Errorf("Error sending success message in checkAnswer to user %s. %v", utils.ShortUserName(message.From), err)
 		}
@@ -119,16 +119,16 @@ func checkAnswer(ctx Ctx, message *tg.Message) {
 		return
 	}
 
-	msg := invalidMessage(ctx, chatID, message.Chat.ID)
-	_, err = ctx.App.Bot.Send(msg)
+	msg := invalidMessage(req, chatID, message.Chat.ID)
+	_, err = req.App.Bot.Send(msg)
 	if err != nil {
 		log.Errorf("Error sending invalid message in checkAnswer to user %s. %v", utils.ShortUserName(message.From), err)
 	}
 }
 
-func userAddedHandler(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func userAddedHandler(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 	log.Infof("Got array of added users to group chat. Length: %d", len(*message.NewChatMembers))
@@ -136,9 +136,9 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 
 	for _, u := range *message.NewChatMembers {
 		isNeedMessage := true
-		if u.ID == ctx.App.Bot.Self.ID {
+		if u.ID == req.App.Bot.Self.ID {
 			// Bot added to chat
-			ctx.App.DB.UpdateChat(config.Chat{
+			req.App.DB.UpdateChat(config.Chat{
 				ID:       message.Chat.ID,
 				Title:    message.Chat.Title,
 				UserName: message.Chat.UserName,
@@ -157,13 +157,13 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 			continue
 		}
 
-		isConfirmed, err := ctx.App.DB.UserConfirmed(message.Chat.ID, u.ID)
+		isConfirmed, err := req.App.DB.UserConfirmed(message.Chat.ID, u.ID)
 		if err != nil && err.Error() != mongo.ErrNoDocuments.Error() {
 			log.Errorf("Failed check user confirmation. %v", err)
 			continue
 		}
 		if !isConfirmed {
-			err = ctx.App.DB.AddChatUser(message.Chat.ID, config.ChatUser{
+			err = req.App.DB.AddChatUser(message.Chat.ID, config.ChatUser{
 				ID:        u.ID,
 				Confirmed: !isNeedMessage,
 				MsgCount:  0,
@@ -175,7 +175,7 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 			if isNeedMessage {
 				var f bool = false
 				// Restrict user permissions
-				resp, err := ctx.App.Bot.RestrictChatMember(tg.RestrictChatMemberConfig{
+				resp, err := req.App.Bot.RestrictChatMember(tg.RestrictChatMemberConfig{
 					ChatMemberConfig: tg.ChatMemberConfig{
 						ChatID: message.Chat.ID,
 						UserID: u.ID,
@@ -188,7 +188,7 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 				if err != nil {
 					log.Errorf("Failed restrict new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
 					// Send message to admins that bot needs to be granted admin privileges
-					ch, err := ctx.App.DB.GetChatInfo(message.Chat.ID)
+					ch, err := req.App.DB.GetChatInfo(message.Chat.ID)
 					if err != nil {
 						log.Errorf("Error getting chat information %s. %v", message.Chat.ID, err)
 						continue
@@ -197,10 +197,10 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 					if ch.Type == "supergroup" && ch.UserName != "" {
 						chatTitle = "@" + ch.UserName
 					}
-					adminText := fmt.Sprintf("Grant admin privileges to bot @%s in chat %s", ctx.App.Bot.Self.UserName, chatTitle)
+					adminText := fmt.Sprintf("Grant admin privileges to bot @%s in chat %s", req.App.Bot.Self.UserName, chatTitle)
 					for _, adm := range ch.Admins {
 						msg := tg.NewMessage(int64(adm), adminText)
-						_, err := ctx.App.Bot.Send(msg)
+						_, err := req.App.Bot.Send(msg)
 						if err != nil {
 							log.Errorf("Error sending message to admin %d in chat %s. %v", adm, chatTitle, err)
 						}
@@ -218,44 +218,44 @@ func userAddedHandler(ctx Ctx, message *tg.Message) {
 				}
 				testButton := tg.NewInlineKeyboardButtonURL(
 					"Пройти тест",
-					fmt.Sprintf("tg://resolve?domain=%s&start=%d", ctx.App.Bot.Self.UserName, message.Chat.ID),
+					fmt.Sprintf("tg://resolve?domain=%s&start=%d", req.App.Bot.Self.UserName, message.Chat.ID),
 				)
 				buttons.InlineKeyboard = append(buttons.InlineKeyboard, tg.NewInlineKeyboardRow(testButton))
 				msg.ReplyMarkup = buttons
 
 				// Отправить сообщение для подтверждения
-				res, err := ctx.App.Bot.Send(msg)
+				res, err := req.App.Bot.Send(msg)
 				if err != nil {
 					log.Errorf("Error sending message to user %s. %v", utils.FullUserName(message.From), err)
 					continue
 				}
-				err = ctx.App.DB.UpdateConfirmReference(res.Chat.ID, res.MessageID, u.ID)
+				err = req.App.DB.UpdateConfirmReference(res.Chat.ID, res.MessageID, u.ID)
 				if err != nil {
 					log.Errorf("Error update reference to confirm message for user %s. %v", utils.FullUserName(message.From), err)
 					continue
 				}
 			}
 			// Add this chat to user's chats
-			err = ctx.App.DB.AddUnconfirmedChat(message.Chat.ID, u.ID)
+			err = req.App.DB.AddUnconfirmedChat(message.Chat.ID, u.ID)
 		}
 		log.Infof("Added user `%s` to chat `%s`", utils.ShortUserName(message.From), utils.ChatName(message.Chat))
 	}
 }
 
-func userLeftHandler(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func userLeftHandler(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 	log.Infof("Start handling left user %s from chat %s", utils.ShortUserName(message.From), utils.ChatName(message.Chat))
 	// Remove from users list if user was not confirmed
-	ref, err := ctx.App.DB.RemoveUnconfirmedChatUser(message.Chat.ID, message.LeftChatMember.ID)
+	ref, err := req.App.DB.RemoveUnconfirmedChatUser(message.Chat.ID, message.LeftChatMember.ID)
 	if err != nil {
 		log.Errorf("Error remove unconfirmed user from chat %s %v", utils.ChatName(message.Chat), err.Error())
 	}
 	if ref.ChatID != 0 {
 		// Remove message from chat
-		_, err := ctx.App.Bot.DeleteMessage(tg.DeleteMessageConfig{
+		_, err := req.App.Bot.DeleteMessage(tg.DeleteMessageConfig{
 			ChatID:    ref.ChatID,
 			MessageID: ref.MsgID,
 		})
@@ -264,7 +264,7 @@ func userLeftHandler(ctx Ctx, message *tg.Message) {
 		}
 	}
 	// Remove from admins list
-	err = ctx.App.DB.RemoveChatAdmin(message.Chat.ID, message.LeftChatMember.ID)
+	err = req.App.DB.RemoveChatAdmin(message.Chat.ID, message.LeftChatMember.ID)
 	if err != nil {
 		log.Errorf("Error delete user %d from admins from chat %s %v", message.LeftChatMember.ID, utils.ChatName(message.Chat), err.Error())
 	}

@@ -16,14 +16,14 @@ type App struct {
 	Config config.Config
 	DB     *storage.Storage
 	Bot    *tg.BotAPI
+	Log    *logrus.Logger
 }
 
-// Ctx is simple context of request
-type Ctx struct {
-	App         App
-	Log         *logrus.Logger
-	RequestID   int64
-	RequestTime time.Time
+// Req contains some data of request
+type Req struct {
+	ID   int64
+	Time time.Time
+	App  App
 }
 
 func main() {
@@ -79,26 +79,25 @@ func main() {
 	for update := range updates {
 		// Create context for request
 		reqTime := time.Now()
-		ctx := Ctx{
-			App:         app,
-			Log:         log,
-			RequestID:   reqTime.UnixNano() / 1000,
-			RequestTime: reqTime,
+		req := Req{
+			ID:   reqTime.UnixNano() / 1000,
+			Time: reqTime,
+			App:  app,
 		}
 
 		switch {
 		case update.Message.IsCommand():
 			log.WithFields(logrus.Fields{
-				"requestID": ctx.RequestID,
+				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			go command(ctx, update.Message)
+			go command(req, update.Message)
 		default:
 			log.WithFields(logrus.Fields{
-				"requestID": ctx.RequestID,
+				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Text message request")
-			go handler(ctx, update.Message)
+			go handler(req, update.Message)
 		}
 	}
 }

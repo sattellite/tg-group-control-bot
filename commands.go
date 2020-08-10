@@ -8,18 +8,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func command(ctx Ctx, message *tg.Message) {
+func command(req Req, message *tg.Message) {
 	switch message.Command() {
 	case "start":
-		askQuestion(ctx, message)
+		askQuestion(req, message)
 	default:
-		defaultCommand(ctx, message)
+		defaultCommand(req, message)
 	}
 }
 
-func askQuestion(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func askQuestion(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 
@@ -28,22 +28,22 @@ func askQuestion(ctx Ctx, message *tg.Message) {
 		log.Errorf("Error parse chatID in askQuestion %v", err.Error())
 		return
 	}
-	msg := questionMessage(ctx, chatID, message.Chat.ID)
-	_, err = ctx.App.Bot.Send(msg)
+	msg := questionMessage(req, chatID, message.Chat.ID)
+	_, err = req.App.Bot.Send(msg)
 	if err != nil {
 		log.Errorf("Error sending message in askQuestion to user %s. %v", utils.ShortUserName(message.From), err)
 	}
 }
 
-func defaultCommand(ctx Ctx, message *tg.Message) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func defaultCommand(req Req, message *tg.Message) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      message.From,
 	})
 
 	log.Warnf("Message from %s with unknown command %s with arguments %s", utils.ShortUserName(message.From), message.Command(), message.CommandArguments())
 
-	_, err := ctx.App.Bot.Send(tg.NewMessage(message.Chat.ID, "Неизвестная команда"))
+	_, err := req.App.Bot.Send(tg.NewMessage(message.Chat.ID, "Неизвестная команда"))
 	if err != nil {
 		log.Errorf("Error sending message in defaultCommand to %d. %v", message.Chat.ID, err)
 	}

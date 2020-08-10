@@ -12,9 +12,9 @@ import (
 )
 
 // checkUser checks the presence of the user in DB and adds it in DB
-func checkUser(ctx Ctx, user *tg.User) (config.User, error) {
-	log := ctx.Log.WithFields(logrus.Fields{
-		"requestID": ctx.RequestID,
+func checkUser(req Req, user *tg.User) (config.User, error) {
+	log := req.App.Log.WithFields(logrus.Fields{
+		"requestID": req.ID,
 		"user":      user,
 	})
 
@@ -31,7 +31,7 @@ func checkUser(ctx Ctx, user *tg.User) (config.User, error) {
 		Bot:       user.IsBot,
 	}
 
-	new, ctxUser, err := ctx.App.DB.CheckUser(u)
+	new, ctxUser, err := req.App.DB.CheckUser(u)
 	if err != nil {
 		return u, err
 	}

@@ -20,22 +20,22 @@ func prepareText(chat string, isInvalid bool) string {
 	return strings.Join(text, "")
 }
 
-func questionMessage(ctx Ctx, fromChatID, toChatID int64) *tg.MessageConfig {
-	text := prepareText(ctx.App.DB.GetChatTitle(fromChatID), false)
+func questionMessage(req Req, fromChatID, toChatID int64) *tg.MessageConfig {
+	text := prepareText(req.App.DB.GetChatTitle(fromChatID), false)
 	msg := tg.NewMessage(toChatID, text)
 
 	return &msg
 }
 
-func invalidMessage(ctx Ctx, fromChatID, toChatID int64) *tg.MessageConfig {
-	text := prepareText(ctx.App.DB.GetChatTitle(fromChatID), true)
+func invalidMessage(req Req, fromChatID, toChatID int64) *tg.MessageConfig {
+	text := prepareText(req.App.DB.GetChatTitle(fromChatID), true)
 	msg := tg.NewMessage(toChatID, text)
 
 	return &msg
 }
 
-func successMessage(ctx Ctx, fromChatID, toChatID int64) *tg.MessageConfig {
-	text := fmt.Sprintf("Вы прошли тест!\nВы получили доступ к чату %s", ctx.App.DB.GetChatTitle(fromChatID))
+func successMessage(req Req, fromChatID, toChatID int64) *tg.MessageConfig {
+	text := fmt.Sprintf("Вы прошли тест!\nВы получили доступ к чату %s", req.App.DB.GetChatTitle(fromChatID))
 	msg := tg.NewMessage(toChatID, text)
 
 	return &msg
