@@ -1,4 +1,4 @@
-package main
+package grcbot
 
 import (
 	"os"
@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// App is main application context with common modules and data
+// App is main type combining all needed data
 type App struct {
 	Config config.Config
 	DB     *storage.Storage
@@ -23,16 +23,16 @@ type App struct {
 type Req struct {
 	ID   int64
 	Time time.Time
-	App  App
+	App  *App
 }
 
-func main() {
+// Init starts all services for bot
+func Init() *App {
 	log := logrus.New()
 	log.Formatter = &logrus.TextFormatter{
 		TimestampFormat: "2006-01-02 15:04:05.000",
 		FullTimestamp:   true,
 	}
-	// log.ReportCaller = true
 
 	var cfg config.Config
 	if err := config.Create(&cfg); err != nil {
@@ -57,24 +57,32 @@ func main() {
 
 	bot, err := tg.NewBotAPI(cfg.BotToken)
 	if err != nil {
-		log.Error("Failed connect to Telegram.")
-		log.Error(err)
+		log.Errorf("Failed connect to Telegram. %v", err)
 		os.Exit(3)
 	}
+	log.Infof("Authorized on telegram account @%s", bot.Self.UserName)
+
 	bot.Debug = cfg.TelegramDebug
 
-	app := App{
+	return &App{
 		Config: cfg,
 		DB:     db,
 		Bot:    bot,
+		Log:    log,
 	}
+}
 
-	log.Infof("Authorized on telegram account @%s", bot.Self.UserName)
-
+// Start starts polling for messages for bot
+func Start(app *App) {
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.GetUpdatesChan(u)
+	updates, err := app.Bot.GetUpdatesChan(u)
+
+	if err != nil {
+		app.Log.Errorf("Failed get updates from Telegram. %v", err)
+		os.Exit(4)
+	}
 
 	for update := range updates {
 		// Create context for request
@@ -87,13 +95,13 @@ func main() {
 
 		switch {
 		case update.Message.IsCommand():
-			log.WithFields(logrus.Fields{
+			app.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
 			go command(req, update.Message)
 		default:
-			log.WithFields(logrus.Fields{
+			app.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Text message request")
@@ -101,6 +109,3 @@ func main() {
 		}
 	}
 }
-
-// TODO Add timer function for delete old unconfirmed users
-// TODO Add timer function for increment users messages in chats
