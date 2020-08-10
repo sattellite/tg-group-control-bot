@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/sattellite/tg-group-control-bot/utils"
+	"github.com/sattellite/tg-group-control-bot/internal/names"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,7 +31,7 @@ func askQuestion(req Req, message *tg.Message) {
 	msg := questionMessage(req, chatID, message.Chat.ID)
 	_, err = req.App.Bot.Send(msg)
 	if err != nil {
-		log.Errorf("Error sending message in askQuestion to user %s. %v", utils.ShortUserName(message.From), err)
+		log.Errorf("Error sending message in askQuestion to user %s. %v", names.ShortUserName(message.From), err)
 	}
 }
 
@@ -41,7 +41,7 @@ func defaultCommand(req Req, message *tg.Message) {
 		"user":      message.From,
 	})
 
-	log.Warnf("Message from %s with unknown command %s with arguments %s", utils.ShortUserName(message.From), message.Command(), message.CommandArguments())
+	log.Warnf("Message from %s with unknown command %s with arguments %s", names.ShortUserName(message.From), message.Command(), message.CommandArguments())
 
 	_, err := req.App.Bot.Send(tg.NewMessage(message.Chat.ID, "Неизвестная команда"))
 	if err != nil {

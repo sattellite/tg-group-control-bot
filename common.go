@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/sattellite/tg-group-control-bot/internal/config"
-	"github.com/sattellite/tg-group-control-bot/utils"
+	"github.com/sattellite/tg-group-control-bot/internal/names"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/sirupsen/logrus"
@@ -37,7 +37,7 @@ func checkUser(req Req, user *tg.User) (config.User, error) {
 	}
 
 	if new {
-		log.Info("Created new user ID: ", user.ID, " Name: ", utils.FullUserName(user))
+		log.Info("Created new user ID: ", user.ID, " Name: ", names.FullUserName(user))
 	}
 
 	return ctxUser, nil
