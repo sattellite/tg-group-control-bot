@@ -1,7 +1,8 @@
 package main
 
-import "github.com/sattellite/tg-group-control-bot/internal/grcbot"
+import "github.com/sattellite/tg-group-control-bot/internal/bot"
 
 func main() {
-	app := grcbot.Init()
+	app := bot.Init()
+	bot.Start(app)
 }

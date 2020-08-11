@@ -1,9 +1,12 @@
-package main
+package bot
 
 import (
 	"os"
 	"time"
 
+	"github.com/sattellite/tg-group-control-bot/internal/bot/handlers/command"
+	"github.com/sattellite/tg-group-control-bot/internal/bot/handlers/text"
+	"github.com/sattellite/tg-group-control-bot/internal/bot/t"
 	"github.com/sattellite/tg-group-control-bot/internal/config"
 	"github.com/sattellite/tg-group-control-bot/internal/storage"
 
@@ -11,28 +14,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// App is main application context with common modules and data
-type App struct {
-	Config config.Config
-	DB     *storage.Storage
-	Bot    *tg.BotAPI
-	Log    *logrus.Logger
-}
-
-// Req contains some data of request
-type Req struct {
-	ID   int64
-	Time time.Time
-	App  App
-}
-
-func main() {
+// Init starts all services for bot
+func Init() *t.Bot {
 	log := logrus.New()
 	log.Formatter = &logrus.TextFormatter{
 		TimestampFormat: "2006-01-02 15:04:05.000",
 		FullTimestamp:   true,
 	}
-	// log.ReportCaller = true
 
 	var cfg config.Config
 	if err := config.Create(&cfg); err != nil {
@@ -57,50 +45,55 @@ func main() {
 
 	bot, err := tg.NewBotAPI(cfg.BotToken)
 	if err != nil {
-		log.Error("Failed connect to Telegram.")
-		log.Error(err)
+		log.Errorf("Failed connect to Telegram. %v", err)
 		os.Exit(3)
 	}
-	bot.Debug = cfg.TelegramDebug
-
-	app := App{
-		Config: cfg,
-		DB:     db,
-		Bot:    bot,
-	}
-
 	log.Infof("Authorized on telegram account @%s", bot.Self.UserName)
 
+	bot.Debug = cfg.TelegramDebug
+
+	return &t.Bot{
+		Config: cfg,
+		DB:     db,
+		API:    bot,
+		Log:    log,
+	}
+}
+
+// Start starts polling for messages for bot
+func Start(bot *t.Bot) {
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.GetUpdatesChan(u)
+	updates, err := bot.API.GetUpdatesChan(u)
+
+	if err != nil {
+		bot.Log.Errorf("Failed get updates from Telegram. %v", err)
+		os.Exit(4)
+	}
 
 	for update := range updates {
 		// Create context for request
 		reqTime := time.Now()
-		req := Req{
+		req := t.Req{
 			ID:   reqTime.UnixNano() / 1000,
 			Time: reqTime,
-			App:  app,
+			Bot:  bot,
 		}
 
 		switch {
 		case update.Message.IsCommand():
-			log.WithFields(logrus.Fields{
+			bot.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			go command(req, update.Message)
+			go command.Handle(req, update.Message)
 		default:
-			log.WithFields(logrus.Fields{
+			bot.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Text message request")
-			go handler(req, update.Message)
+			go text.Handle(req, update.Message)
 		}
 	}
 }
-
-// TODO Add timer function for delete old unconfirmed users
-// TODO Add timer function for increment users messages in chats

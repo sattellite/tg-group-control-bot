@@ -1,10 +1,11 @@
-package main
+package message
 
 import (
 	"fmt"
 	"strings"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/sattellite/tg-group-control-bot/internal/bot/t"
 )
 
 func prepareText(chat string, isInvalid bool) string {
@@ -20,22 +21,22 @@ func prepareText(chat string, isInvalid bool) string {
 	return strings.Join(text, "")
 }
 
-func questionMessage(req Req, fromChatID, toChatID int64) *tg.MessageConfig {
-	text := prepareText(req.App.DB.GetChatTitle(fromChatID), false)
+func Question(req t.Req, fromChatID, toChatID int64) *tg.MessageConfig {
+	text := prepareText(req.Bot.DB.GetChatTitle(fromChatID), false)
 	msg := tg.NewMessage(toChatID, text)
 
 	return &msg
 }
 
-func invalidMessage(req Req, fromChatID, toChatID int64) *tg.MessageConfig {
-	text := prepareText(req.App.DB.GetChatTitle(fromChatID), true)
+func Invalid(req t.Req, fromChatID, toChatID int64) *tg.MessageConfig {
+	text := prepareText(req.Bot.DB.GetChatTitle(fromChatID), true)
 	msg := tg.NewMessage(toChatID, text)
 
 	return &msg
 }
 
-func successMessage(req Req, fromChatID, toChatID int64) *tg.MessageConfig {
-	text := fmt.Sprintf("Вы прошли тест!\nВы получили доступ к чату %s", req.App.DB.GetChatTitle(fromChatID))
+func Success(req t.Req, fromChatID, toChatID int64) *tg.MessageConfig {
+	text := fmt.Sprintf("Вы прошли тест!\nВы получили доступ к чату %s", req.Bot.DB.GetChatTitle(fromChatID))
 	msg := tg.NewMessage(toChatID, text)
 
 	return &msg
