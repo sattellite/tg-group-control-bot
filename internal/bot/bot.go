@@ -39,14 +39,14 @@ func Init() *t.Bot {
 	if err != nil {
 		log.Error("Failed connect to database.")
 		log.Error(err)
-		os.Exit(2)
+		os.Exit(1)
 	}
 	log.Info("Successfully connected to database.")
 
 	bot, err := tg.NewBotAPI(cfg.BotToken)
 	if err != nil {
 		log.Errorf("Failed connect to Telegram. %v", err)
-		os.Exit(3)
+		os.Exit(1)
 	}
 	log.Infof("Authorized on telegram account @%s", bot.Self.UserName)
 
@@ -69,7 +69,7 @@ func Start(bot *t.Bot) {
 
 	if err != nil {
 		bot.Log.Errorf("Failed get updates from Telegram. %v", err)
-		os.Exit(4)
+		os.Exit(1)
 	}
 
 	for update := range updates {
