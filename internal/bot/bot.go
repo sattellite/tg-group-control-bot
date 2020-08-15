@@ -19,8 +19,8 @@ type Bot struct {
 	Log    *logrus.Logger
 }
 
-// Req contains some data of request
-type Req struct {
+// BotRequest contains some data of request
+type BotRequest struct {
 	ID   int64
 	Time time.Time
 	Bot  *Bot
@@ -87,7 +87,7 @@ func (b *Bot) Start() {
 	for update := range updates {
 		// Create context for request
 		reqTime := time.Now()
-		req := Req{
+		req := BotRequest{
 			ID:   reqTime.UnixNano() / 1000,
 			Time: reqTime,
 			Bot:  b,

@@ -11,7 +11,7 @@ import (
 )
 
 // CheckUser checks the presence of the user in DB and adds it in DB
-func (b *Bot) CheckUser(req Req, user *tg.User) (config.User, error) {
+func (b *Bot) CheckUser(req BotRequest, user *tg.User) (config.User, error) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      user,

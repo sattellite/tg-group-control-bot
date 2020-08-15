@@ -12,7 +12,7 @@ import (
 )
 
 // HandleText start handling text messages
-func (b *Bot) HandleText(req Req, message *tg.Message) {
+func (b *Bot) HandleText(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -35,7 +35,7 @@ func (b *Bot) HandleText(req Req, message *tg.Message) {
 	}
 }
 
-func (b *Bot) textHandler(req Req, message *tg.Message) {
+func (b *Bot) textHandler(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -51,7 +51,7 @@ func (b *Bot) textHandler(req Req, message *tg.Message) {
 	// TODO Increment counter of user messages in chat
 }
 
-func (b *Bot) checkAnswer(req Req, message *tg.Message) {
+func (b *Bot) checkAnswer(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -126,7 +126,7 @@ func (b *Bot) checkAnswer(req Req, message *tg.Message) {
 	}
 }
 
-func (b *Bot) userAddedHandler(req Req, message *tg.Message) {
+func (b *Bot) userAddedHandler(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -242,7 +242,7 @@ func (b *Bot) userAddedHandler(req Req, message *tg.Message) {
 	}
 }
 
-func (b *Bot) userLeftHandler(req Req, message *tg.Message) {
+func (b *Bot) userLeftHandler(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,

@@ -9,7 +9,7 @@ import (
 )
 
 // HandleCommand start handling command message
-func (b *Bot) HandleCommand(req Req, message *tg.Message) {
+func (b *Bot) HandleCommand(req BotRequest, message *tg.Message) {
 	switch message.Command() {
 	case "start":
 		b.askQuestion(req, message)
@@ -18,7 +18,7 @@ func (b *Bot) HandleCommand(req Req, message *tg.Message) {
 	}
 }
 
-func (b *Bot) askQuestion(req Req, message *tg.Message) {
+func (b *Bot) askQuestion(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -36,7 +36,7 @@ func (b *Bot) askQuestion(req Req, message *tg.Message) {
 	}
 }
 
-func (b *Bot) defaultCommand(req Req, message *tg.Message) {
+func (b *Bot) defaultCommand(req BotRequest, message *tg.Message) {
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
