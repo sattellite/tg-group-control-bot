@@ -4,9 +4,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/sattellite/tg-group-control-bot/internal/bot/handlers/command"
-	"github.com/sattellite/tg-group-control-bot/internal/bot/handlers/text"
-	"github.com/sattellite/tg-group-control-bot/internal/bot/t"
 	"github.com/sattellite/tg-group-control-bot/internal/config"
 	"github.com/sattellite/tg-group-control-bot/internal/storage"
 
@@ -14,8 +11,23 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Bot is main type combining all needed data
+type Bot struct {
+	Config config.Config
+	DB     *storage.Storage
+	API    *tg.BotAPI
+	Log    *logrus.Logger
+}
+
+// Req contains some data of request
+type Req struct {
+	ID   int64
+	Time time.Time
+	Bot  *Bot
+}
+
 // Init starts all services for bot
-func Init() *t.Bot {
+func Init() *Bot {
 	log := logrus.New()
 	log.Formatter = &logrus.TextFormatter{
 		TimestampFormat: "2006-01-02 15:04:05.000",
@@ -52,7 +64,7 @@ func Init() *t.Bot {
 
 	bot.Debug = cfg.TelegramDebug
 
-	return &t.Bot{
+	return &Bot{
 		Config: cfg,
 		DB:     db,
 		API:    bot,
@@ -61,39 +73,39 @@ func Init() *t.Bot {
 }
 
 // Start starts polling for messages for bot
-func Start(bot *t.Bot) {
+func (b *Bot) Start() {
 	u := tg.NewUpdate(0)
 	u.Timeout = 60
 
-	updates, err := bot.API.GetUpdatesChan(u)
+	updates, err := b.API.GetUpdatesChan(u)
 
 	if err != nil {
-		bot.Log.Errorf("Failed get updates from Telegram. %v", err)
+		b.Log.Errorf("Failed get updates from Telegram. %v", err)
 		os.Exit(1)
 	}
 
 	for update := range updates {
 		// Create context for request
 		reqTime := time.Now()
-		req := t.Req{
+		req := Req{
 			ID:   reqTime.UnixNano() / 1000,
 			Time: reqTime,
-			Bot:  bot,
+			Bot:  b,
 		}
 
 		switch {
 		case update.Message.IsCommand():
-			bot.Log.WithFields(logrus.Fields{
+			b.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			go command.Handle(req, update.Message)
+			go b.HandleCommand(req, update.Message)
 		default:
-			bot.Log.WithFields(logrus.Fields{
+			b.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Text message request")
-			go text.Handle(req, update.Message)
+			go b.HandleText(req, update.Message)
 		}
 	}
 }
