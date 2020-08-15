@@ -21,7 +21,7 @@ func (b *Bot) prepareText(chat string, isInvalid bool) string {
 }
 
 // TGMessageQuestion returns telegram message with question for confirm
-func (b *Bot) TGMessageQuestion(req BotRequest, fromChatID, toChatID int64) *tg.MessageConfig {
+func (b *Bot) TGMessageQuestion(fromChatID, toChatID int64) *tg.MessageConfig {
 	text := b.prepareText(b.DB.GetChatTitle(fromChatID), false)
 	msg := tg.NewMessage(toChatID, text)
 
@@ -29,7 +29,7 @@ func (b *Bot) TGMessageQuestion(req BotRequest, fromChatID, toChatID int64) *tg.
 }
 
 // TGMessageInvalid returns telegram message with text about incorrect answer
-func (b *Bot) TGMessageInvalid(req BotRequest, fromChatID, toChatID int64) *tg.MessageConfig {
+func (b *Bot) TGMessageInvalid(fromChatID, toChatID int64) *tg.MessageConfig {
 	text := b.prepareText(b.DB.GetChatTitle(fromChatID), true)
 	msg := tg.NewMessage(toChatID, text)
 
@@ -37,7 +37,7 @@ func (b *Bot) TGMessageInvalid(req BotRequest, fromChatID, toChatID int64) *tg.M
 }
 
 // TGMessageSuccess returns telegram message with success text
-func (b *Bot) TGMessageSuccess(req BotRequest, fromChatID, toChatID int64) *tg.MessageConfig {
+func (b *Bot) TGMessageSuccess(fromChatID, toChatID int64) *tg.MessageConfig {
 	text := fmt.Sprintf("Вы прошли тест!\nВы получили доступ к чату %s", b.DB.GetChatTitle(fromChatID))
 	msg := tg.NewMessage(toChatID, text)
 

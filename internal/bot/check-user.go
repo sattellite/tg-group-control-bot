@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
@@ -11,7 +12,11 @@ import (
 )
 
 // CheckUser checks the presence of the user in DB and adds it in DB
-func (b *Bot) CheckUser(req BotRequest, user *tg.User) (config.User, error) {
+func (b *Bot) CheckUser(ctx context.Context, user *tg.User) (config.User, error) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		return config.User{}, errors.New("Failed to get request values from context")
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      user,

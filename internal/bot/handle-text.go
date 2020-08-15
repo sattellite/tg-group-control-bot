@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -12,14 +13,19 @@ import (
 )
 
 // HandleText start handling text messages
-func (b *Bot) HandleText(req BotRequest, message *tg.Message) {
+func (b *Bot) HandleText(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in HandleText")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
 	})
 
 	// Cancel execution if command from bot or user is banned
-	_, err := b.CheckUser(req, message.From)
+	_, err := b.CheckUser(ctx, message.From)
 	if err != nil {
 		log.Error(err)
 		return
@@ -27,15 +33,20 @@ func (b *Bot) HandleText(req BotRequest, message *tg.Message) {
 
 	switch {
 	case message.NewChatMembers != nil:
-		b.userAddedHandler(req, message)
+		b.userAddedHandler(ctx, message)
 	case message.LeftChatMember != nil:
-		b.userLeftHandler(req, message)
+		b.userLeftHandler(ctx, message)
 	default:
-		b.textHandler(req, message)
+		b.textHandler(ctx, message)
 	}
 }
 
-func (b *Bot) textHandler(req BotRequest, message *tg.Message) {
+func (b *Bot) textHandler(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in textHandler")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -44,14 +55,19 @@ func (b *Bot) textHandler(req BotRequest, message *tg.Message) {
 	log.Debug(message.From.ID, message.Chat.ID)
 	if int64(message.From.ID) == message.Chat.ID {
 		log.Infof("Received message in bot chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
-		b.checkAnswer(req, message)
+		b.checkAnswer(ctx, message)
 		return
 	}
 	log.Infof("Received message in chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
 	// TODO Increment counter of user messages in chat
 }
 
-func (b *Bot) checkAnswer(req BotRequest, message *tg.Message) {
+func (b *Bot) checkAnswer(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in checkAnswer")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -110,7 +126,7 @@ func (b *Bot) checkAnswer(req BotRequest, message *tg.Message) {
 			return
 		}
 		// Send success message to user in bot chat
-		msg := b.TGMessageSuccess(req, chatID, message.Chat.ID)
+		msg := b.TGMessageSuccess(chatID, message.Chat.ID)
 		_, err = b.API.Send(msg)
 		if err != nil {
 			log.Errorf("Error sending success message in checkAnswer to user %s. %v", names.ShortUserName(message.From), err)
@@ -119,14 +135,19 @@ func (b *Bot) checkAnswer(req BotRequest, message *tg.Message) {
 		return
 	}
 
-	msg := b.TGMessageInvalid(req, chatID, message.Chat.ID)
+	msg := b.TGMessageInvalid(chatID, message.Chat.ID)
 	_, err = b.API.Send(msg)
 	if err != nil {
 		log.Errorf("Error sending invalid message in checkAnswer to user %s. %v", names.ShortUserName(message.From), err)
 	}
 }
 
-func (b *Bot) userAddedHandler(req BotRequest, message *tg.Message) {
+func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in userAddedHandler")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -242,7 +263,12 @@ func (b *Bot) userAddedHandler(req BotRequest, message *tg.Message) {
 	}
 }
 
-func (b *Bot) userLeftHandler(req BotRequest, message *tg.Message) {
+func (b *Bot) userLeftHandler(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in userLeftHandler")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,

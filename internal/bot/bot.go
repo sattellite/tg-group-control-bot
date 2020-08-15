@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -23,8 +24,11 @@ type Bot struct {
 type BotRequest struct {
 	ID   int64
 	Time time.Time
-	Bot  *Bot
 }
+
+type key string
+
+const botReqKey key = "botreq"
 
 // Init starts all services for bot
 func Init() *Bot {
@@ -90,8 +94,9 @@ func (b *Bot) Start() {
 		req := BotRequest{
 			ID:   reqTime.UnixNano() / 1000,
 			Time: reqTime,
-			Bot:  b,
 		}
+
+		ctx := context.WithValue(context.Background(), botReqKey, req)
 
 		switch {
 		case update.Message.IsCommand():
@@ -99,13 +104,18 @@ func (b *Bot) Start() {
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			go b.HandleCommand(req, update.Message)
+			go b.HandleCommand(ctx, update.Message)
 		default:
 			b.Log.WithFields(logrus.Fields{
 				"requestID": req.ID,
 				"user":      update.Message.From,
 			}).Infof("Text message request")
-			go b.HandleText(req, update.Message)
+			go b.HandleText(ctx, update.Message)
 		}
 	}
+}
+
+func (b *Bot) reqFromContext(ctx context.Context) (BotRequest, bool) {
+	req, ok := ctx.Value(botReqKey).(BotRequest)
+	return req, ok
 }

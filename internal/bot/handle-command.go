@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"strconv"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -9,16 +10,21 @@ import (
 )
 
 // HandleCommand start handling command message
-func (b *Bot) HandleCommand(req BotRequest, message *tg.Message) {
+func (b *Bot) HandleCommand(ctx context.Context, message *tg.Message) {
 	switch message.Command() {
 	case "start":
-		b.askQuestion(req, message)
+		b.askQuestion(ctx, message)
 	default:
-		b.defaultCommand(req, message)
+		b.defaultCommand(ctx, message)
 	}
 }
 
-func (b *Bot) askQuestion(req BotRequest, message *tg.Message) {
+func (b *Bot) askQuestion(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in askQuestion")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
@@ -29,14 +35,19 @@ func (b *Bot) askQuestion(req BotRequest, message *tg.Message) {
 		log.Errorf("Error parse chatID in askQuestion %v", err.Error())
 		return
 	}
-	msg := b.TGMessageQuestion(req, chatID, message.Chat.ID)
+	msg := b.TGMessageQuestion(chatID, message.Chat.ID)
 	_, err = b.API.Send(msg)
 	if err != nil {
 		log.Errorf("Error sending message in askQuestion to user %s. %v", names.ShortUserName(message.From), err)
 	}
 }
 
-func (b *Bot) defaultCommand(req BotRequest, message *tg.Message) {
+func (b *Bot) defaultCommand(ctx context.Context, message *tg.Message) {
+	req, ok := b.reqFromContext(ctx)
+	if !ok {
+		b.Log.Errorf("Failed to get request values from context in askQuestion")
+		return
+	}
 	log := b.Log.WithFields(logrus.Fields{
 		"requestID": req.ID,
 		"user":      message.From,
