@@ -2,11 +2,12 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
-	"github.com/sattellite/tg-group-control-bot/config"
+	"github.com/pkg/errors"
+
+	"tg-group-control-bot/internal/config"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -38,7 +39,7 @@ func New(cfg *config.Config, db string) (*Storage, error) {
 	defer cancelCheckCtx()
 	err = client.Ping(ctx, readpref.Primary())
 	if err != nil {
-		return &s, errors.New("Failed ping in New:" + err.Error())
+		return &s, errors.Wrap(err, "Failed ping in New")
 	}
 
 	s.Client = client
@@ -59,7 +60,7 @@ func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return false, result, errors.New("Failed ping in CheckUser:" + err.Error())
+		return false, result, errors.Wrap(err, "Failed ping in CheckUser")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("users")
@@ -70,7 +71,7 @@ func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
 		// Replace zero userID to passed
 		result.ID = u.ID
 		if err != mongo.ErrNoDocuments {
-			return false, result, errors.New("Failed find ID in CheckUser:" + err.Error())
+			return false, result, errors.Wrap(err, "Failed find ID in CheckUser")
 		}
 		// User doesn't exist
 		isNewUser = true
@@ -88,7 +89,7 @@ func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
 		u.Chats = make([]int64, 0)
 		_, err := collection.InsertOne(ctx, u)
 		if err != nil {
-			return isNewUser, result, errors.New("Failed insert in CheckUser:" + err.Error())
+			return isNewUser, result, errors.Wrap(err, "Failed insert in CheckUser")
 		}
 	}
 
@@ -103,7 +104,7 @@ func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
 			"UserName":  u.UserName,
 		}})
 		if err != nil {
-			return isNewUser, result, errors.New("Failed update in CheckUser: " + err.Error())
+			return isNewUser, result, errors.Wrap(err, "Failed update in CheckUser")
 		}
 		result.UsageDate = usageDate
 	}
@@ -116,7 +117,7 @@ func (s *Storage) UpdateUser(u config.User) error {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in UpdateUser:" + err.Error())
+		return errors.Wrap(err, "Failed ping in UpdateUser")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("users")
@@ -125,7 +126,7 @@ func (s *Storage) UpdateUser(u config.User) error {
 	u.UsageDate = usageDate
 	_, err = collection.UpdateOne(ctx, bson.M{"ID": u.ID}, bson.M{"$set": u})
 	if err != nil {
-		return errors.New("Failed update in UpdateUser: " + err.Error())
+		return errors.Wrap(err, "Failed update in UpdateUser")
 	}
 	return nil
 }
@@ -135,7 +136,7 @@ func (s *Storage) UpdateChat(chat config.Chat) error {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in UpdateChat:" + err.Error())
+		return errors.Wrap(err, "Failed ping in UpdateChat")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("chats")
@@ -146,7 +147,7 @@ func (s *Storage) UpdateChat(chat config.Chat) error {
 	err = collection.FindOne(ctx, bson.M{"ID": chat.ID}).Decode(&c)
 	if err != nil {
 		if err.Error() != mongo.ErrNoDocuments.Error() {
-			return errors.New("Failed find in UpdateChat: " + err.Error())
+			return errors.Wrap(err, "Failed find in UpdateChat")
 		}
 		needCreate = true
 	}
@@ -154,7 +155,7 @@ func (s *Storage) UpdateChat(chat config.Chat) error {
 	if needCreate {
 		_, err = collection.InsertOne(ctx, chat)
 		if err != nil {
-			return errors.New("Failed insert in UpdateChat: " + err.Error())
+			return errors.Wrap(err, "Failed insert in UpdateChat")
 		}
 		return nil
 	}
@@ -162,7 +163,7 @@ func (s *Storage) UpdateChat(chat config.Chat) error {
 	c.Title = chat.Title
 	_, err = collection.UpdateOne(ctx, bson.M{"ID": chat.ID}, bson.M{"$set": c})
 	if err != nil {
-		return errors.New("Failed update in UpdateChat: " + err.Error())
+		return errors.Wrap(err, "Failed update in UpdateChat")
 	}
 	return nil
 }
@@ -172,7 +173,7 @@ func (s *Storage) UserConfirmed(chatID int64, userID int) (bool, error) {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return true, errors.New("Failed ping in UserConfirmed:" + err.Error())
+		return true, errors.Wrap(err, "Failed ping in UserConfirmed")
 	}
 
 	var c config.Chat
@@ -196,7 +197,7 @@ func (s *Storage) AddChatUser(chatID int64, cu config.ChatUser) error {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in AddChatUser:" + err.Error())
+		return errors.Wrap(err, "Failed ping in AddChatUser")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("chats")
@@ -210,7 +211,7 @@ func (s *Storage) UpdateConfirmReference(chatID int64, msgID, userID int) error 
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in AddChatUser:" + err.Error())
+		return errors.Wrap(err, "Failed ping in AddChatUser")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("chats")
@@ -229,7 +230,7 @@ func (s *Storage) GetChatInfo(chatID int64) (config.Chat, error) {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return c, errors.New("Failed ping in GetChatInfo:" + err.Error())
+		return c, errors.Wrap(err, "Failed ping in GetChatInfo")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("chats")
@@ -278,7 +279,7 @@ func (s *Storage) RemoveUnconfirmedChatUser(chatID int64, userID int) (config.Re
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return ref, errors.New("Failed ping in RemoveUnconfirmedChatUser:" + err.Error())
+		return ref, errors.Wrap(err, "Failed ping in RemoveUnconfirmedChatUser")
 	}
 	collection := s.Client.Database(s.Name).Collection("chats")
 
@@ -306,7 +307,7 @@ func (s *Storage) RemoveUnconfirmedChatUser(chatID int64, userID int) (config.Re
 			},
 		})
 		if err != nil {
-			return ref, errors.New("Failed remove user in RemoveUnconfirmedChatUser: " + err.Error())
+			return ref, errors.Wrap(err, "Failed remove user in RemoveUnconfirmedChatUser")
 		}
 	}
 
@@ -322,7 +323,7 @@ func (s *Storage) ConfirmChatUser(chatID int64, userID int) (config.Ref, error) 
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return ref, errors.New("Failed ping in ConfirmChatUser:" + err.Error())
+		return ref, errors.Wrap(err, "Failed ping in ConfirmChatUser")
 	}
 	collection := s.Client.Database(s.Name).Collection("chats")
 
@@ -351,7 +352,7 @@ func (s *Storage) ConfirmChatUser(chatID int64, userID int) (config.Ref, error) 
 			},
 		})
 		if err != nil {
-			return ref, errors.New("Failed update user in ConfirmChatUser: " + err.Error())
+			return ref, errors.Wrap(err, "Failed update user in ConfirmChatUser")
 		}
 	}
 
@@ -363,14 +364,14 @@ func (s *Storage) RemoveChatAdmin(chatID int64, userID int) error {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in RemoveChatAdmin:" + err.Error())
+		return errors.Wrap(err, "Failed ping in RemoveChatAdmin")
 	}
 	collection := s.Client.Database(s.Name).Collection("chats")
 	_, err = collection.UpdateOne(ctx, bson.M{"ID": chatID}, bson.M{
 		"$pull": bson.M{"Admins": userID},
 	})
 	if err != nil {
-		return errors.New("Failed remove user in RemoveUnconfirmedChatUser: " + err.Error())
+		return errors.Wrap(err, "Failed remove user in RemoveUnconfirmedChatUser")
 	}
 	return nil
 }
@@ -380,7 +381,7 @@ func (s *Storage) AddUnconfirmedChat(chatID int64, userID int) error {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in AddUnconfirmedChat:" + err.Error())
+		return errors.Wrap(err, "Failed ping in AddUnconfirmedChat")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("users")
@@ -394,7 +395,7 @@ func (s *Storage) DeleteUnconfirmedChat(chatID int64, userID int) error {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return errors.New("Failed ping in DeleteUnconfirmedChat:" + err.Error())
+		return errors.Wrap(err, "Failed ping in DeleteUnconfirmedChat")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("users")
