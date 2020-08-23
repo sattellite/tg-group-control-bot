@@ -23,7 +23,7 @@ And you need to have MongoDB to store chat and some users data.
 1. `git clone https://github.com/sattellite/github.com/sattellite/tg-group-control-bot.git`
 2. `cd tg-group-control-bot`
 3. `go get -v -d ./...`
-4. `go build -o group-control-bot`
+4. `go build -o group-control-bot cmd/grcbot/main.go`
 5. `BOT_TOKEN=xxx MONGO_URL="mongodb://<user>:<password>@<host>:<port>/chat_control" ./group-control-bot`
 
 > If you will copy binary file to other location then you need copy `locales` directory too.
