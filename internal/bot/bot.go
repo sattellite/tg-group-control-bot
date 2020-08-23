@@ -91,6 +91,14 @@ func (b *Bot) Start() {
 
 	for update := range updates {
 		switch {
+		case update.EditedMessage != nil:
+			go b.logger(update, b.Stub)
+		case update.InlineQuery != nil:
+			go b.logger(update, b.Stub)
+		case update.ChosenInlineResult != nil:
+			go b.logger(update, b.Stub)
+		case update.CallbackQuery != nil:
+			go b.logger(update, b.Stub)
 		case update.Message.IsCommand():
 			go b.logger(update, b.HandleCommand)
 		default:
@@ -107,11 +115,11 @@ func (b *Bot) logger(u tg.Update, h func(*tg.Message) error) {
 		"requestID": t.UnixNano() / 1000,
 		"user":      m.From,
 	})
+	mt := b.messageType(&u)
 	if err != nil {
-
+		log.Errorf("Error handling '%s' request %+v", mt, err)
 		return
 	}
-	mt := b.messageType(&u)
 
 	// Log before handling
 	log.Infof("Started handling '%s' request", mt)
