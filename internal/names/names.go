@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"tg-group-control-bot/internal/config"
+
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/sattellite/tg-group-control-bot/internal/config"
 )
 
 // FullUserName returns full name and nickname

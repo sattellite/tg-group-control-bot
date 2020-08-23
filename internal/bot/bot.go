@@ -1,12 +1,13 @@
 package bot
 
 import (
-	"context"
+	"errors"
 	"os"
 	"time"
 
-	"github.com/sattellite/tg-group-control-bot/internal/config"
-	"github.com/sattellite/tg-group-control-bot/internal/storage"
+	"tg-group-control-bot/internal/config"
+
+	"tg-group-control-bot/internal/storage"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/sirupsen/logrus"
@@ -89,33 +90,73 @@ func (b *Bot) Start() {
 	}
 
 	for update := range updates {
-		// Create context for request
-		reqTime := time.Now()
-		req := BotRequest{
-			ID:   reqTime.UnixNano() / 1000,
-			Time: reqTime,
-		}
-
-		ctx := context.WithValue(context.Background(), botReqKey, req)
-
 		switch {
 		case update.Message.IsCommand():
-			b.Log.WithFields(logrus.Fields{
-				"requestID": req.ID,
-				"user":      update.Message.From,
-			}).Infof("Command request %s %s", update.Message.Command(), update.Message.CommandArguments())
-			go b.HandleCommand(ctx, update.Message)
+			go b.logger(update, b.HandleCommand)
 		default:
-			b.Log.WithFields(logrus.Fields{
-				"requestID": req.ID,
-				"user":      update.Message.From,
-			}).Infof("Text message request")
-			go b.HandleText(ctx, update.Message)
+			go b.logger(update, b.HandleText)
 		}
 	}
 }
 
-func (b *Bot) reqFromContext(ctx context.Context) (BotRequest, bool) {
-	req, ok := ctx.Value(botReqKey).(BotRequest)
-	return req, ok
+func (b *Bot) logger(u tg.Update, h func(*tg.Message) error) {
+	// Prepared data for logger
+	t := time.Now()
+	m, err := b.getMessage(&u)
+	log := b.Log.WithFields(logrus.Fields{
+		"requestID": t.UnixNano() / 1000,
+		"user":      m.From,
+	})
+	if err != nil {
+
+		return
+	}
+	mt := b.messageType(&u)
+
+	// Log before handling
+	log.Infof("Started handling '%s' request", mt)
+	// Log after handling
+	defer log.Infof("Finished handling '%s' request. Duration %s", mt, time.Since(t))
+	err = h(m)
+	if err != nil {
+		log.Errorf("Error handling '%s' request %+v", mt, err)
+	}
+}
+
+func (b *Bot) getMessage(u *tg.Update) (*tg.Message, error) {
+	switch {
+	case u.EditedMessage != nil:
+		return u.EditedMessage, nil
+	case u.InlineQuery != nil:
+		return &tg.Message{From: u.InlineQuery.From}, errors.New("tg.InlineQuery is not tg.Message")
+	case u.ChosenInlineResult != nil:
+		return &tg.Message{From: u.ChosenInlineResult.From}, errors.New("tg.ChosenInlineResult is not tg.Message")
+	case u.CallbackQuery != nil:
+		return &tg.Message{From: u.CallbackQuery.From}, errors.New("tg.CallbackQuery is not tg.Message")
+	case u.Message != nil:
+		return u.Message, nil
+	default:
+		return nil, errors.New("Unknown request type")
+	}
+}
+
+func (b *Bot) messageType(u *tg.Update) string {
+	switch {
+	case u.EditedMessage != nil:
+		return "edited message"
+	case u.InlineQuery != nil:
+		return "inline query"
+	case u.ChosenInlineResult != nil:
+		return "inline choice"
+	case u.CallbackQuery != nil:
+		return "callback"
+	case u.Message.IsCommand():
+		return "command"
+	case u.Message.NewChatMembers != nil:
+		return "new chat members"
+	case u.Message.LeftChatMember != nil:
+		return "left chat member"
+	default:
+		return "text message"
+	}
 }

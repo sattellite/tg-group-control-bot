@@ -1,86 +1,56 @@
 package bot
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
+	"tg-group-control-bot/internal/config"
+
+	"tg-group-control-bot/internal/names"
+
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/sattellite/tg-group-control-bot/internal/config"
-	"github.com/sattellite/tg-group-control-bot/internal/names"
-	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // HandleText start handling text messages
-func (b *Bot) HandleText(ctx context.Context, message *tg.Message) {
-	req, ok := b.reqFromContext(ctx)
-	if !ok {
-		b.Log.Errorf("Failed to get request values from context in HandleText")
-		return
-	}
-	log := b.Log.WithFields(logrus.Fields{
-		"requestID": req.ID,
-		"user":      message.From,
-	})
-
+func (b *Bot) HandleText(message *tg.Message) error {
 	// Cancel execution if command from bot or user is banned
-	_, err := b.CheckUser(ctx, message.From)
+	_, err := b.CheckUser(message.From)
 	if err != nil {
-		log.Error(err)
-		return
+		return err
 	}
 
 	switch {
 	case message.NewChatMembers != nil:
-		b.userAddedHandler(ctx, message)
+		return b.userAddedHandler(message)
 	case message.LeftChatMember != nil:
-		b.userLeftHandler(ctx, message)
+		return b.userLeftHandler(message)
 	default:
-		b.textHandler(ctx, message)
+		return b.textHandler(message)
 	}
 }
 
-func (b *Bot) textHandler(ctx context.Context, message *tg.Message) {
-	req, ok := b.reqFromContext(ctx)
-	if !ok {
-		b.Log.Errorf("Failed to get request values from context in textHandler")
-		return
-	}
-	log := b.Log.WithFields(logrus.Fields{
-		"requestID": req.ID,
-		"user":      message.From,
-	})
+func (b *Bot) textHandler(message *tg.Message) error {
 	// Message to chat with bot
-	log.Debug(message.From.ID, message.Chat.ID)
+	b.Log.Debug(message.From.ID, message.Chat.ID)
 	if int64(message.From.ID) == message.Chat.ID {
-		log.Infof("Received message in bot chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
-		b.checkAnswer(ctx, message)
-		return
+		b.Log.Infof("Received message in bot chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
+		return b.checkAnswer(message)
 	}
-	log.Infof("Received message in chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
+	b.Log.Infof("Received message in chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
 	// TODO Increment counter of user messages in chat
+	return nil
 }
 
-func (b *Bot) checkAnswer(ctx context.Context, message *tg.Message) {
-	req, ok := b.reqFromContext(ctx)
-	if !ok {
-		b.Log.Errorf("Failed to get request values from context in checkAnswer")
-		return
-	}
-	log := b.Log.WithFields(logrus.Fields{
-		"requestID": req.ID,
-		"user":      message.From,
-	})
-
+func (b *Bot) checkAnswer(message *tg.Message) error {
 	_, user, err := b.DB.CheckUser(config.User{ID: message.From.ID})
 	if err != nil {
-		log.Errorf("Failed get user info in checkAnswer for %s %v", names.ShortUserName(message.From), err.Error())
+		return errors.Wrapf(err, "Failed get user info in checkAnswer for %s", names.ShortUserName(message.From))
 	}
 
 	if len(user.Chats) == 0 {
-		log.Errorf("No unconfirmed chats for %s", names.ShortUserName(message.From))
-		return
+		return fmt.Errorf("No unconfirmed chats for %s", names.ShortUserName(message.From))
 	}
 
 	chatID := user.Chats[len(user.Chats)-1]
@@ -100,14 +70,12 @@ func (b *Bot) checkAnswer(ctx context.Context, message *tg.Message) {
 			CanAddWebPagePreviews: &t,
 		})
 		if err != nil {
-			log.Errorf("Failed restore new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
 			// TODO Send error message to admins
-			return
+			return fmt.Errorf("Failed restore new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
 		}
 		ref, err := b.DB.ConfirmChatUser(chatID, message.From.ID)
 		if err != nil {
-			log.Errorf("Error update user %d in storage for chat %s. %v", message.From.ID, names.ChatName(message.Chat), err.Error())
-			return
+			return errors.Wrapf(err, "Error update user %d in storage for chat %s.", message.From.ID, names.ChatName(message.Chat))
 		}
 		// Delete confirmation message from group chat
 		if ref.ChatID != 0 {
@@ -116,45 +84,34 @@ func (b *Bot) checkAnswer(ctx context.Context, message *tg.Message) {
 				MessageID: ref.MsgID,
 			})
 			if err != nil {
-				log.Errorf("Error delete confirmation message from chat %s %v", names.ChatName(message.Chat), err.Error())
+				b.Log.Errorf("Error delete confirmation message from chat %s %v", names.ChatName(message.Chat), err.Error())
+				// TODO Send error message to admins
 			}
 		}
 		// Delete chat from user's unconfirmed chats
 		err = b.DB.DeleteUnconfirmedChat(chatID, message.From.ID)
 		if err != nil {
-			log.Errorf("Error delete user's(%d) unconfirmed chat %s %v", message.From.ID, names.ChatName(message.Chat), err.Error())
-			return
+			return errors.Wrapf(err, "Error delete user's(%d %s) unconfirmed chat %s %v", message.From.ID, names.ShortUserName(message.From), names.ChatName(message.Chat))
 		}
 		// Send success message to user in bot chat
 		msg := b.TGMessageSuccess(chatID, message.Chat.ID)
 		_, err = b.API.Send(msg)
 		if err != nil {
-			log.Errorf("Error sending success message in checkAnswer to user %s. %v", names.ShortUserName(message.From), err)
+			return errors.Wrapf(err, "Error sending success message in checkAnswer to user %s.", names.ShortUserName(message.From))
 		}
 
-		return
+		return nil
 	}
 
 	msg := b.TGMessageInvalid(chatID, message.Chat.ID)
 	_, err = b.API.Send(msg)
 	if err != nil {
-		log.Errorf("Error sending invalid message in checkAnswer to user %s. %v", names.ShortUserName(message.From), err)
+		return errors.Wrapf(err, "Error sending invalid message in checkAnswer to user %s.", names.ShortUserName(message.From))
 	}
+	return nil
 }
 
-func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
-	req, ok := b.reqFromContext(ctx)
-	if !ok {
-		b.Log.Errorf("Failed to get request values from context in userAddedHandler")
-		return
-	}
-	log := b.Log.WithFields(logrus.Fields{
-		"requestID": req.ID,
-		"user":      message.From,
-	})
-	log.Infof("Got array of added users to group chat. Length: %d", len(*message.NewChatMembers))
-	log.Info("Start handling added users")
-
+func (b *Bot) userAddedHandler(message *tg.Message) error {
 	for _, u := range *message.NewChatMembers {
 		isNeedMessage := true
 		if u.ID == b.API.Self.ID {
@@ -174,14 +131,18 @@ func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
 		}
 
 		// Stop handling if someone from chat added users
+		// message.From.ID and u.ID must be equal, it means that user was added by itself
 		if message.From.ID != u.ID {
 			continue
 		}
 
+		// If user was add by itself, than slice *message.NewChatMembers contains
+		// only one user and then all "continue" can be replaced with "return error"
+
 		isConfirmed, err := b.DB.UserConfirmed(message.Chat.ID, u.ID)
 		if err != nil && err.Error() != mongo.ErrNoDocuments.Error() {
-			log.Errorf("Failed check user confirmation. %v", err)
-			continue
+			// continue
+			return errors.Wrap(err, "Failed check user confirmation in userAddedHandler.")
 		}
 		if !isConfirmed {
 			err = b.DB.AddChatUser(message.Chat.ID, config.ChatUser{
@@ -190,8 +151,8 @@ func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
 				MsgCount:  0,
 			})
 			if err != nil {
-				log.Errorf("Failed add user to chat. %v", err)
-				continue
+				// continue
+				return errors.Wrap(err, "Failed add user to chat.")
 			}
 			if isNeedMessage {
 				var f bool = false
@@ -207,12 +168,14 @@ func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
 					CanAddWebPagePreviews: &f,
 				})
 				if err != nil {
-					log.Errorf("Failed restrict new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
+					err1 := errors.Wrapf(err, "Failed restrict new user privileges with code %d and error %s", resp.ErrorCode, resp.Description)
+					b.Log.Error(err1)
+
 					// Send message to admins that bot needs to be granted admin privileges
 					ch, err := b.DB.GetChatInfo(message.Chat.ID)
 					if err != nil {
-						log.Errorf("Error getting chat information %s. %v", message.Chat.ID, err)
-						continue
+						// continue
+						return errors.Wrapf(err, "Error getting chat information %s.", message.Chat.ID)
 					}
 					chatTitle := ch.Title
 					if ch.Type == "supergroup" && ch.UserName != "" {
@@ -223,10 +186,10 @@ func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
 						msg := tg.NewMessage(int64(adm), adminText)
 						_, err := b.API.Send(msg)
 						if err != nil {
-							log.Errorf("Error sending message to admin %d in chat %s. %v", adm, chatTitle, err)
+							return errors.Wrapf(err, "Error sending message to admin %d in chat %s.", adm, chatTitle)
 						}
 					}
-					continue
+					return err1
 				}
 				// Формирование сообщения с кнопкой для перехода к тесту
 				messageText := fmt.Sprintf("Привет %s\nТы в режиме только для чтения. Для того, чтобы получить полные права в этом чате надо пройти тест.\nНажми кнопку под этим сообщением, чтобы пройти тест.", names.ShortUserName(&u))
@@ -247,37 +210,31 @@ func (b *Bot) userAddedHandler(ctx context.Context, message *tg.Message) {
 				// Отправить сообщение для подтверждения
 				res, err := b.API.Send(msg)
 				if err != nil {
-					log.Errorf("Error sending message to user %s. %v", names.FullUserName(message.From), err)
-					continue
+					// continue
+					return errors.Wrapf(err, "Error sending message to user %s.", names.FullUserName(message.From))
 				}
 				err = b.DB.UpdateConfirmReference(res.Chat.ID, res.MessageID, u.ID)
 				if err != nil {
-					log.Errorf("Error update reference to confirm message for user %s. %v", names.FullUserName(message.From), err)
-					continue
+					// continue
+					return errors.Wrapf(err, "Error update reference to confirm message for user %s.", names.FullUserName(message.From))
 				}
 			}
 			// Add this chat to user's chats
 			err = b.DB.AddUnconfirmedChat(message.Chat.ID, u.ID)
+			if err != nil {
+				return errors.Wrapf(err, "Failed add chat `%s` to user's %s unconfirmed chats.", names.ChatName(message.Chat), names.ShortUserName(message.From))
+			}
 		}
-		log.Infof("Added user `%s` to chat `%s`", names.ShortUserName(message.From), names.ChatName(message.Chat))
+		return nil
 	}
+	return nil
 }
 
-func (b *Bot) userLeftHandler(ctx context.Context, message *tg.Message) {
-	req, ok := b.reqFromContext(ctx)
-	if !ok {
-		b.Log.Errorf("Failed to get request values from context in userLeftHandler")
-		return
-	}
-	log := b.Log.WithFields(logrus.Fields{
-		"requestID": req.ID,
-		"user":      message.From,
-	})
-	log.Infof("Start handling left user %s from chat %s", names.ShortUserName(message.From), names.ChatName(message.Chat))
+func (b *Bot) userLeftHandler(message *tg.Message) error {
 	// Remove from users list if user was not confirmed
 	ref, err := b.DB.RemoveUnconfirmedChatUser(message.Chat.ID, message.LeftChatMember.ID)
 	if err != nil {
-		log.Errorf("Error remove unconfirmed user from chat %s %v", names.ChatName(message.Chat), err.Error())
+		return errors.Wrapf(err, "Error remove unconfirmed user from chat %s", names.ChatName(message.Chat))
 	}
 	if ref.ChatID != 0 {
 		// Remove message from chat
@@ -286,12 +243,13 @@ func (b *Bot) userLeftHandler(ctx context.Context, message *tg.Message) {
 			MessageID: ref.MsgID,
 		})
 		if err != nil {
-			log.Errorf("Error delete confirmation message from chat %s %v", names.ChatName(message.Chat), err.Error())
+			b.Log.Errorf("Error delete confirmation message from chat %s %v", names.ChatName(message.Chat), err.Error())
 		}
 	}
 	// Remove from admins list
 	err = b.DB.RemoveChatAdmin(message.Chat.ID, message.LeftChatMember.ID)
 	if err != nil {
-		log.Errorf("Error delete user %d from admins from chat %s %v", message.LeftChatMember.ID, names.ChatName(message.Chat), err.Error())
+		return errors.Wrapf(err, "Error delete user %d from admins from chat %s", message.LeftChatMember.ID, names.ChatName(message.Chat))
 	}
+	return nil
 }

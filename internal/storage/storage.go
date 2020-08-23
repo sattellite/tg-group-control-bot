@@ -2,11 +2,12 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
-	"github.com/sattellite/tg-group-control-bot/internal/config"
+	"github.com/pkg/errors"
+
+	"tg-group-control-bot/internal/config"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -59,7 +60,7 @@ func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
 	ctx, cancelCtx, err := s.checkDB()
 	defer cancelCtx()
 	if err != nil {
-		return false, result, errors.New("Failed ping in CheckUser:" + err.Error())
+		return false, result, errors.Wrap(err, "Failed ping in CheckUser")
 	}
 
 	collection := s.Client.Database(s.Name).Collection("users")
