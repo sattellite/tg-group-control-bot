@@ -12,27 +12,27 @@ import (
 // FullUserName returns full name and nickname
 func FullUserName(user *tg.User) string {
 	if user.UserName != "" {
-		return fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.UserName)
+		return replaceUnderscore(fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.UserName))
 	}
-	return fmt.Sprintf("%s %s", user.FirstName, user.LastName)
+	return replaceUnderscore(fmt.Sprintf("%s %s", user.FirstName, user.LastName))
 }
 
 // ShortUserName returns or nickname or name of telegram user
 func ShortUserName(user *tg.User) string {
 	if user.UserName != "" {
-		return fmt.Sprintf("@%s", user.UserName)
+		return replaceUnderscore(fmt.Sprintf("@%s", user.UserName))
 	}
 	str := []string{user.FirstName, user.LastName}
-	return strings.Join(str, " ")
+	return replaceUnderscore(strings.Join(str, " "))
 }
 
 // LocalUserShortName returns or nickname or name of local user
 func LocalUserShortName(user config.User) string {
 	if user.UserName != "" {
-		return fmt.Sprintf("@%s", user.UserName)
+		return replaceUnderscore(fmt.Sprintf("@%s", user.UserName))
 	}
 	str := []string{user.FirstName, user.LastName}
-	return strings.Join(str, " ")
+	return replaceUnderscore(strings.Join(str, " "))
 }
 
 // ChatName returns chat name
@@ -41,5 +41,9 @@ func ChatName(ch *tg.Chat) string {
 	if ch.Type == "supergroup" && ch.UserName != "" {
 		chatTitle = "@" + ch.UserName
 	}
-	return chatTitle
+	return replaceUnderscore(chatTitle)
+}
+
+func replaceUnderscore(str string) string {
+	return strings.ReplaceAll(str, "_", "\\_")
 }
