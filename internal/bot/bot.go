@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"tg-group-control-bot/internal/config"
-
+	"tg-group-control-bot/internal/memo"
 	"tg-group-control-bot/internal/storage"
 
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -19,6 +19,7 @@ type Bot struct {
 	DB     *storage.Storage
 	API    *tg.BotAPI
 	Log    *logrus.Logger
+	Memo   *memo.Memo
 }
 
 // BotRequest contains some data of request
@@ -69,11 +70,14 @@ func Init() *Bot {
 
 	bot.Debug = cfg.TelegramDebug
 
+	memo := memo.New()
+
 	return &Bot{
 		Config: cfg,
 		DB:     db,
 		API:    bot,
 		Log:    log,
+		Memo:   memo,
 	}
 }
 
