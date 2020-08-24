@@ -13,22 +13,20 @@ type Item struct {
 
 // Memo contains all keys
 type Memo struct {
-	Items map[int]Item
+	Items map[interface{}]Item
 	mutex sync.RWMutex
 }
 
 // New returns memo struct
 func New() *Memo {
 	var m Memo
+	m.Items = make(map[interface{}]Item)
 	return &m
 }
 
 // Set adding key-value pair to memory
-func (m *Memo) Set(key int, value interface{}) {
+func (m *Memo) Set(key, value interface{}) {
 	m.mutex.Lock()
-	if m.Items == nil {
-		m.Items = make(map[int]Item)
-	}
 	m.Items[key] = Item{
 		Value: value,
 	}
@@ -36,7 +34,7 @@ func (m *Memo) Set(key int, value interface{}) {
 }
 
 // Get returning value from storage
-func (m *Memo) Get(key int) (interface{}, error) {
+func (m *Memo) Get(key interface{}) (interface{}, error) {
 	m.mutex.Lock()
 	defer func() {
 		m.mutex.Unlock()
