@@ -17,6 +17,15 @@ func (b *Bot) CheckUser(user *tg.User) (config.User, error) {
 		return config.User{}, errors.New("It is bot. ID: " + strconv.Itoa(user.ID))
 	}
 
+	// Get memoized value
+	if mu, err := b.Memo.Get(user.ID); err == nil {
+		// Try cast type
+		if mcu, ok := mu.(config.User); ok {
+			// Return memoized user if ok
+			return mcu, nil
+		}
+	}
+
 	u := config.User{
 		ID:        user.ID,
 		FirstName: user.FirstName,
@@ -26,7 +35,7 @@ func (b *Bot) CheckUser(user *tg.User) (config.User, error) {
 		Bot:       user.IsBot,
 	}
 
-	new, ctxUser, err := b.DB.CheckUser(u)
+	new, cu, err := b.DB.CheckUser(u)
 	if err != nil {
 		return u, err
 	}
@@ -34,6 +43,8 @@ func (b *Bot) CheckUser(user *tg.User) (config.User, error) {
 	if new {
 		b.Log.Info("Created new user ID: ", user.ID, " Name: ", names.FullUserName(user))
 	}
+	// Memoize confirmed user
+	b.Memo.Set(u.ID, cu)
 
-	return ctxUser, nil
+	return cu, nil
 }
