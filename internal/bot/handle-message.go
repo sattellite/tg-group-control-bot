@@ -138,6 +138,37 @@ func (b *Bot) userAddedHandler(message *tg.Message) error {
 		// If user was add by itself, than slice *message.NewChatMembers contains
 		// only one user and then all "continue" can be replaced with "return error"
 
+		isSpammer := b.SpamCheck(u.ID)
+		b.Log.Errorf("userAddedHandler isSpammer %v", isSpammer)
+
+		if isSpammer {
+			resp, err := b.API.KickChatMember(tg.KickChatMemberConfig{
+				ChatMemberConfig: tg.ChatMemberConfig{
+					ChatID: message.Chat.ID,
+					UserID: u.ID,
+				}})
+
+			if err != nil {
+				errorText := fmt.Sprintf("Failed kick spam user %s from chat %s with code %d and error %s", names.FullUserName(&u), names.ChatName(message.Chat), resp.ErrorCode, resp.Description)
+				b.Log.Errorf("%+v", errors.Wrap(err, errorText))
+
+				// Send message to admins that cannot kick spam user
+				ch, err := b.DB.GetChatInfo(message.Chat.ID)
+				if err == nil {
+					for _, adm := range ch.Admins {
+						msg := tg.NewMessage(int64(adm), errorText)
+						_, err := b.API.Send(msg)
+						if err != nil {
+							b.Log.Errorf("%+v", errors.Wrapf(err, "Error sending message to admin %d in chat %s.", adm, names.ChatName(message.Chat)))
+						}
+					}
+				}
+			}
+			if err == nil {
+				return nil
+			}
+		}
+
 		isConfirmed, err := b.DB.UserConfirmed(message.Chat.ID, u.ID)
 		if err != nil && err.Error() != mongo.ErrNoDocuments.Error() {
 			// continue
