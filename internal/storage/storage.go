@@ -53,7 +53,7 @@ func (s *Storage) checkDB() (context.Context, context.CancelFunc, error) {
 }
 
 // CheckUser is checking user for ban and existence or creating a new user
-func (s *Storage) CheckUser(u config.User) (bool, config.User, error) {
+func (s *Storage) UserCheck(u config.User) (bool, config.User, error) {
 	var result config.User
 	var isNewUser bool
 

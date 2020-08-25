@@ -11,8 +11,8 @@ import (
 	tg "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-// CheckUser checks the presence of the user in DB and adds it in DB
-func (b *Bot) CheckUser(user *tg.User) (config.User, error) {
+// UserCheck checks the presence of the user in DB and adds it in DB
+func (b *Bot) UserCheck(user *tg.User) (config.User, error) {
 	if user.IsBot {
 		return config.User{}, errors.New("It is bot. ID: " + strconv.Itoa(user.ID))
 	}
@@ -35,7 +35,7 @@ func (b *Bot) CheckUser(user *tg.User) (config.User, error) {
 		Bot:       user.IsBot,
 	}
 
-	new, cu, err := b.DB.CheckUser(u)
+	new, cu, err := b.DB.UserCheck(u)
 	if err != nil {
 		return u, err
 	}

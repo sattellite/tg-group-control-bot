@@ -106,7 +106,7 @@ func (b *Bot) Start() {
 		case update.Message.IsCommand():
 			go b.logger(update, b.HandleCommand)
 		default:
-			go b.logger(update, b.HandleText)
+			go b.logger(update, b.HandleMessage)
 		}
 	}
 }

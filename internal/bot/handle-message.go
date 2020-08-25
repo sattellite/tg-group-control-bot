@@ -13,10 +13,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// HandleText start handling text messages
-func (b *Bot) HandleText(message *tg.Message) error {
+// HandleMessage start handling text messages
+func (b *Bot) HandleMessage(message *tg.Message) error {
 	// Cancel execution if command from bot or user is banned
-	_, err := b.CheckUser(message.From)
+	_, err := b.UserCheck(message.From)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,6 @@ func (b *Bot) HandleText(message *tg.Message) error {
 
 func (b *Bot) textHandler(message *tg.Message) error {
 	// Message to chat with bot
-	b.Log.Debug(message.From.ID, message.Chat.ID)
 	if int64(message.From.ID) == message.Chat.ID {
 		b.Log.Infof("Received message in bot chat from user %s with text `%s`", names.ShortUserName(message.From), message.Text)
 		return b.checkAnswer(message)
@@ -44,7 +43,7 @@ func (b *Bot) textHandler(message *tg.Message) error {
 }
 
 func (b *Bot) checkAnswer(message *tg.Message) error {
-	_, user, err := b.DB.CheckUser(config.User{ID: message.From.ID})
+	_, user, err := b.DB.UserCheck(config.User{ID: message.From.ID})
 	if err != nil {
 		return errors.Wrapf(err, "Failed get user info in checkAnswer for %s", names.ShortUserName(message.From))
 	}
