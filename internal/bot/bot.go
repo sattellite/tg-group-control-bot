@@ -93,6 +93,8 @@ func (b *Bot) Start() {
 		os.Exit(1)
 	}
 
+	go messageWait(b)
+
 	for update := range updates {
 		switch {
 		case update.EditedMessage != nil:
@@ -171,4 +173,20 @@ func (b *Bot) messageType(u *tg.Update) string {
 	default:
 		return "text message"
 	}
+}
+
+func messagesWait(b *Bot) {
+	messages := make(chan tg.Chattable, 1)
+
+	for {
+		msg, ok := <-messages
+		if !ok {
+			break
+		}
+		_, err := b.API.Send(msg)
+		if err != nil {
+			b.Log.Errorf("Failed send message to ChatID %d with text `%s`. Error %+v", msg.ChatID, msg.Text, err)
+		}
+	}
+
 }
